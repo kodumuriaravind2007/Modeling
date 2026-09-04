@@ -1,6 +1,9 @@
 ﻿# Dependencies
 node_modules/
-frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Python
 __pycache__/
@@ -13,7 +16,6 @@ venv/
 .venv/
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -32,23 +34,14 @@ wheels/
 .env*.local
 !.env.example
 
-# Frontend build outputs
-dist/
-frontend/dist/
+# Temporary / Dev
 dist-ssr/
-frontend/dist-ssr/
 *.local
 .vite-temp/
-frontend/.vite-temp/
 
 # Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
 # Editor & OS files
 .vscode/*

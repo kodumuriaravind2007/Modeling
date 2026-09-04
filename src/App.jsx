@@ -14,7 +14,9 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-const API = 'http://localhost:5000';
+const API = (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173')
+  ? 'http://localhost:5000'
+  : '';
 
 // ─── Simulation Configs & Presets ─────────────────────────────────
 const SIMULATIONS = {

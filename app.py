@@ -4,9 +4,10 @@ Implements RK45 integration, analytical validation, Gemini AI assistant,
 and PDF/CSV export for 4 mechanical simulation modules.
 """
 
+import os
 import json
 import numpy as np
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import io
 
@@ -40,7 +41,7 @@ from analysis.optimizer import run_optimization
 from analysis.sensitivity import run_sensitivity
 from analysis.reverse_solver import run_reverse_solve, REVERSE_TARGETS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)
 
 
@@ -632,6 +633,21 @@ def export_pdf():
 
 @app.route('/health', methods=['GET'])
 def health():
+    return jsonify({"status": "ok", "message": "Mechanical Simulation Backend Online"})
+
+
+# ================================================================
+# ROUTE: Static files and SPA frontend serving
+# ================================================================
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    index_path = os.path.join(app.static_folder, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(app.static_folder, 'index.html')
     return jsonify({"status": "ok", "message": "Mechanical Simulation Backend Online"})
 
 

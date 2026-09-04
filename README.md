@@ -20,102 +20,65 @@ An interactive engineering simulation and analysis platform for classical mechan
   - **Optimization**: Numerical parameter optimization for target objective functions.
 - **Report & Data Export**: Generate professional engineering PDF reports (with diagrams, tables, and parameters) and raw CSV data logs.
 - **Embedded AI Assistant**: Integrated Google Gemini AI assistant acting as a mechanical engineering professor to explain equations, interpret graphs, and derive formulas.
-- **Interactive UI**: Real-time HTML5 Canvas animation and Chart.js plots built with React and Vite.
+- **Unified Full-Stack App**: Flask serves both the Python simulation API and the compiled React + Vite frontend dashboard.
 
 ---
 
 ## Project Structure
 
 ```
-mech-sim/
-├── backend/
-│   ├── analysis/             # Design sweeps, optimization, reverse solver, sensitivity
-│   ├── simulations/          # RK45 numerical physics formulations
-│   ├── validation/           # Closed-form analytical equations & benchmark datasets
-│   ├── ai_assistant.py       # Google Gemini GenAI integration
-│   ├── app.py                # Flask REST API endpoints
-│   ├── export.py             # PDF (ReportLab) and CSV generation
-│   ├── requirements.txt      # Python dependencies
-│   └── .env.example          # Sample environment variables
-├── frontend/
-│   ├── public/               # Static assets & icons
-│   ├── src/
-│   │   ├── assets/           # UI graphics
-│   │   ├── App.jsx           # Main simulation dashboard & UI logic
-│   │   ├── renderers.js      # HTML5 Canvas physics renderers
-│   │   ├── main.jsx          # React DOM entrypoint
-│   │   └── App.css           # Styling
-│   ├── package.json          # Node dependencies & scripts
-│   └── vite.config.js        # Vite build configuration
+Modeling/
+├── analysis/             # Design sweeps, optimization, reverse solver, sensitivity
+├── simulations/          # RK45 numerical physics formulations
+├── validation/           # Closed-form analytical equations & benchmark datasets
+├── dist/                 # Pre-built React frontend assets served by Flask
+├── public/               # Static assets & icons
+├── src/                  # React dashboard source code
+├── ai_assistant.py       # Google Gemini GenAI integration
+├── app.py                # Flask REST API & static file server
+├── export.py             # PDF (ReportLab) and CSV generation
+├── requirements.txt      # Python dependencies (includes gunicorn)
+├── package.json          # Node dependencies & scripts
+├── vite.config.js        # Vite build configuration
+├── index.html            # Vite entry HTML
+├── .env.example          # Sample environment variables
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Getting Started
+## Deployment (Render)
 
-### Prerequisites
-
-- **Python 3.10+**
-- **Node.js 18+** and **npm**
-
----
-
-### Backend Setup
-
-1. Open a terminal in the `backend` directory:
-   ```bash
-   cd backend
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   # Windows
-   python -m venv venv
-   .\venv\Scripts\activate
-
-   # macOS / Linux
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Install required Python packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. *(Optional)* Set up your Gemini API key for the AI assistant:
-   ```bash
-   cp .env.example .env
-   # Edit .env and set GEMINI_API_KEY=your_key_here
-   ```
-
-5. Start the Flask server:
-   ```bash
-   python app.py
-   ```
-   The backend API will run at `http://localhost:5000`.
+- **Language / Runtime**: `Python 3`
+- **Root Directory**: *(Leave empty / blank)*
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `gunicorn app:app`
 
 ---
 
-### Frontend Setup
+## Local Development
 
-1. Open a new terminal in the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
+### Python Backend & Full-Stack Server
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+# Run server (serves frontend at http://localhost:5000)
+python app.py
+```
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-   Open the displayed URL (usually `http://localhost:5173`) in your browser.
+### Vite Frontend (Hot Module Replacement)
+```bash
+# Install dependencies
+npm install
+
+# Start Vite dev server with proxy to backend
+npm run dev
+
+# Build production frontend into dist/
+npm run build
+```
 
 ---
 
