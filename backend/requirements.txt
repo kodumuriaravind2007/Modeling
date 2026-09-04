@@ -1,0 +1,9 @@
+flask
+flask-cors
+numpy
+scipy
+google-genai
+reportlab
+pandas
+matplotlib
+python-dotenv
