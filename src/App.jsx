@@ -12,6 +12,12 @@ import {
   drawSliderCrank, drawFourBar
 } from './renderers';
 
+import { Tooltip as ParamTooltip } from './Tooltip';
+import { HelpCard } from './HelpCards';
+import { WorkflowGuide } from './WorkflowGuide';
+import MathModel from './MathModel';
+import { Scene3D } from './Scene3D';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const API = (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173')
@@ -126,6 +132,7 @@ export default function App() {
   const [animIdx, setAnimIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [animSpeed, setAnimSpeed] = useState(1);
+  const [viewMode, setViewMode] = useState('3d');
 
   // Analysis state
   const [designRes, setDesignRes] = useState(null);
@@ -527,7 +534,9 @@ export default function App() {
           {cfg.sliders.map(s => (
             <div className="param-row" key={s.key}>
               <div className="param-label">
-                <span>{s.label}</span>
+                <ParamTooltip paramKey={s.key}>
+                  <span>{s.label}</span>
+                </ParamTooltip>
                 <div className="param-value-container">
                   <input
                     type="number"
@@ -554,7 +563,9 @@ export default function App() {
 
           <div className="param-row" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
             <div className="param-label">
-              <span>Time Span (t_max)</span>
+              <ParamTooltip paramKey="t_max">
+                <span>Time Span (t_max)</span>
+              </ParamTooltip>
               <div className="param-value-container">
                 <input
                   type="number" className="param-number-input" min={1} max={30} step={0.5}
@@ -610,16 +621,18 @@ export default function App() {
         {/* Navigation Tabs */}
         <div className="tab-bar">
           {[
+            { id: 'guide', label: '🧭 Guide (Flowchart)' },
             { id: 'dashboard', label: '🏠 Dashboard' },
             { id: 'animation', label: '1. Model & Simulate' },
-            { id: 'charts', label: '2. Results & Charts' },
-            { id: 'validation', label: '3. Validate (Physics)' },
-            { id: 'verification', label: '4. Verify (Solver)' },
-            { id: 'design', label: '5. Design (Sweep)' },
-            { id: 'sensitivity', label: '6. Sensitivity (OAT)' },
-            { id: 'optimize', label: '7. Optimize (Global)' },
-            { id: 'reverse', label: '8. Reverse Solve' },
-            { id: 'ai', label: '9. AI Assistant' },
+            { id: 'math_model', label: '2. Math & Circuits 📐' },
+            { id: 'charts', label: '3. Results & Charts' },
+            { id: 'validation', label: '4. Validate (Physics)' },
+            { id: 'verification', label: '5. Verify (Solver)' },
+            { id: 'design', label: '6. Design (Sweep)' },
+            { id: 'sensitivity', label: '7. Sensitivity (OAT)' },
+            { id: 'optimize', label: '8. Optimize (Global)' },
+            { id: 'reverse', label: '9. Reverse Solve' },
+            { id: 'ai', label: '10. AI Assistant' },
           ].map(t => (
             <button key={t.id} className={`tab-btn ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               {t.label}
@@ -666,17 +679,51 @@ export default function App() {
         {/* ── Animation Viewport Tab ── */}
         {tab === 'animation' && (
           <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-            <div className="canvas-viewport">
-              <canvas ref={canvasRef} id="mechCanvas" />
-              {!simData && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 44, marginBottom: 10 }}>{cfg.icon}</div>
-                    <div>Set parameters & click <strong style={{ color: 'var(--primary-light)' }}>▶ Run Simulation</strong></div>
-                  </div>
-                </div>
-              )}
+            {/* View Mode Toggle Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                {viewMode === '3d' ? '🎮 Interactive 3D WebGL Viewport (Orbit / Zoom / Pan)' : '📐 2D High-Speed Canvas Viewport'}
+              </div>
+              <div className="view-toggle-container">
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === '3d' ? 'active' : ''}`}
+                  onClick={() => setViewMode('3d')}
+                >
+                  🎲 3D Simulation
+                </button>
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === '2d' ? 'active' : ''}`}
+                  onClick={() => setViewMode('2d')}
+                >
+                  📐 2D Canvas
+                </button>
+              </div>
             </div>
+
+            {viewMode === '3d' ? (
+              <Scene3D
+                simType={simType}
+                params={params}
+                simData={simData}
+                animIdx={animIdx}
+                isPlaying={isPlaying}
+                animSpeed={animSpeed}
+              />
+            ) : (
+              <div className="canvas-viewport">
+                <canvas ref={canvasRef} id="mechCanvas" />
+                {!simData && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 44, marginBottom: 10 }}>{cfg.icon}</div>
+                      <div>Set parameters & click <strong style={{ color: 'var(--primary-light)' }}>▶ Run Simulation</strong></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Viewport Playback HUD Controls */}
             {simData && (
@@ -894,6 +941,7 @@ export default function App() {
         {/* ── Verification Tab ── */}
         {tab === 'verification' && (
           <div className="analysis-panel">
+            <HelpCard toolKey="verification" />
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div className="card-title" style={{ margin: 0 }}>Numerical convergence / output-resolution verification</div>
@@ -933,6 +981,7 @@ export default function App() {
         {/* ── Design Sweep Tab — Mechanism-Specific Constraints ── */}
         {tab === 'design' && (
           <div className="analysis-panel">
+            <HelpCard toolKey="design" />
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div className="card-title" style={{ margin: 0 }}>Engineering Design Mode</div>
@@ -1034,6 +1083,7 @@ export default function App() {
         {/* ── Global Optimization Tab — Multi-Variable ── */}
         {tab === 'optimize' && (
           <div className="analysis-panel">
+            <HelpCard toolKey="optimize" />
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div className="card-title" style={{ margin: 0 }}>Differential Evolution Optimizer</div>
@@ -1137,6 +1187,7 @@ export default function App() {
         {/* ── Sensitivity Tornado Tab ── */}
         {tab === 'sensitivity' && (
           <div className="analysis-panel">
+            <HelpCard toolKey="sensitivity" />
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div className="card-title" style={{ margin: 0 }}>OAT Sensitivity Analysis</div>
@@ -1178,6 +1229,7 @@ export default function App() {
         {/* ── Reverse Solver Tab ── */}
         {tab === 'reverse' && (
           <div className="analysis-panel">
+            <HelpCard toolKey="reverse" />
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div className="card-title" style={{ margin: 0 }}>🔁 Reverse Engineering Solver</div>
@@ -1327,7 +1379,22 @@ export default function App() {
           </div>
         )}
 
+        {/* ── Workflow Guide Tab (Flowchart) ── */}
+        {tab === 'guide' && (
+          <div style={{ padding: 18, flex: 1, overflowY: 'auto' }}>
+            <WorkflowGuide onSelectTab={(newTab) => setTab(newTab)} />
+          </div>
+        )}
+
+        {/* ── Mathematical Model & Circuits Tab ── */}
+        {tab === 'math_model' && (
+          <div style={{ padding: 18, flex: 1, overflowY: 'auto' }}>
+            <MathModel simType={simType} params={params} />
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
+
