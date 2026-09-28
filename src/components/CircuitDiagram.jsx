@@ -33,14 +33,14 @@ export const CircuitDiagram = ({
         <svg width={width} height={height} viewBox={`0 0 450 280`} style={{ color: '#94a3b8' }}>
           <style>
             {`
-              .wire { stroke: #94a3b8; stroke-width: 2; fill: none; }
-              .inductor { stroke: #6366f1; stroke-width: 3; fill: none; stroke-linejoin: round; }
-              .resistor { stroke: #f59e0b; stroke-width: 3; fill: none; stroke-linejoin: round; }
-              .capacitor { stroke: #06b6d4; stroke-width: 3; fill: none; }
-              .voltage { stroke: #94a3b8; stroke-width: 2; fill: none; }
-              .label-symbol { fill: #e2e8f0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; }
-              .label-value { fill: #06b6d4; font-family: 'JetBrains Mono', monospace; font-size: 12px; text-anchor: middle; }
-              .label-meaning { fill: #94a3b8; font-family: 'Inter', sans-serif; font-size: 11px; text-anchor: middle; }
+              .wire { stroke: #8195B8; stroke-width: 2; fill: none; }
+              .inductor { stroke: #264CB2; stroke-width: 3; fill: none; stroke-linejoin: round; }
+              .resistor { stroke: #173770; stroke-width: 3; fill: none; stroke-linejoin: round; }
+              .capacitor { stroke: #3561EE; stroke-width: 3; fill: none; }
+              .voltage { stroke: #8195B8; stroke-width: 2; fill: none; }
+              .label-symbol { fill: #173770; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; text-anchor: middle; }
+              .label-value { fill: #264CB2; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; text-anchor: middle; }
+              .label-meaning { fill: #526B8F; font-family: 'Inter', sans-serif; font-size: 11px; text-anchor: middle; }
             `}
           </style>
 
@@ -76,8 +76,8 @@ export const CircuitDiagram = ({
 
           {/* Voltage Source V(t) (Center 225, 180) */}
           <circle cx="225" cy="180" r="20" className="voltage" />
-          <text x="225" y="170" fill="#94a3b8" fontSize="12" textAnchor="middle">+</text>
-          <text x="225" y="195" fill="#94a3b8" fontSize="12" textAnchor="middle">-</text>
+          <text x="225" y="170" fill="#8195B8" fontSize="12" textAnchor="middle">+</text>
+          <text x="225" y="195" fill="#8195B8" fontSize="12" textAnchor="middle">-</text>
           <text x="225" y="225" className="label-symbol">V(t)</text>
           <text x="225" y="240" className="label-meaning">(= τ_ext, external torque)</text>
 
@@ -87,28 +87,28 @@ export const CircuitDiagram = ({
           marginTop: '0.5rem',
           fontSize: '0.875rem',
           fontFamily: "'JetBrains Mono', monospace",
-          color: '#cbd5e1',
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          color: 'var(--kx-text-primary, #173770)',
+          backgroundColor: 'var(--kx-periwinkle-pale, #EEF0F8)',
           padding: '1rem',
           borderRadius: '0.5rem',
-          border: '1px solid #334155',
+          border: '1px solid var(--kx-border, #DCE1F0)',
           width: '100%',
           maxWidth: '28rem',
-          boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.1)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
-            <div><span style={{ color: '#6366f1' }}>ω_n</span> = {formatNum(omega_n)} rad/s</div>
-            <div><span style={{ color: '#f59e0b' }}>ζ</span> = {formatNum(zeta)}</div>
+            <div><span style={{ color: '#264CB2', fontWeight: 600 }}>ω_n</span> = {formatNum(omega_n)} rad/s</div>
+            <div><span style={{ color: '#173770', fontWeight: 600 }}>ζ</span> = {formatNum(zeta)}</div>
             {zeta < 1 && zeta > 0 ? (
               <>
-                <div><span style={{ color: '#06b6d4' }}>ω_d</span> = {formatNum(omega_d)} rad/s</div>
-                <div><span style={{ color: '#10b981' }}>T_d</span> = {formatNum(T_d)} s</div>
+                <div><span style={{ color: '#3561EE', fontWeight: 600 }}>ω_d</span> = {formatNum(omega_d)} rad/s</div>
+                <div><span style={{ color: '#2F7D5A', fontWeight: 600 }}>T_d</span> = {formatNum(T_d)} s</div>
               </>
             ) : (
-              <div style={{ gridColumn: 'span 2', color: '#64748b', fontStyle: 'italic' }}>No oscillation (ζ ≥ 1)</div>
+              <div style={{ gridColumn: 'span 2', color: '#526B8F', fontStyle: 'italic' }}>No oscillation (ζ ≥ 1)</div>
             )}
-            <div style={{ gridColumn: 'span 2', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #334155' }}>
-              Class: <span style={{ color: '#e2e8f0' }}>{dampingClass}</span>
+            <div style={{ gridColumn: 'span 2', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--kx-border, #DCE1F0)' }}>
+              Class: <span style={{ color: 'var(--kx-text-primary, #173770)', fontWeight: 600 }}>{dampingClass}</span>
             </div>
           </div>
         </div>
@@ -126,31 +126,32 @@ export const CircuitDiagram = ({
         height: '100%',
         width: '100%',
         padding: '1.5rem',
-        color: '#cbd5e1'
+        color: 'var(--color-text, #1F2937)'
       }}>
         <div style={{
-          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          backgroundColor: 'var(--color-surface, #FFFFFF)',
           padding: '1.5rem',
           borderRadius: '0.75rem',
-          border: '1px solid #334155',
+          border: '1px solid var(--color-border, #E5E7EB)',
           maxWidth: '28rem',
           width: '100%',
-          boxShadow: '0 10px 15px -3px rgba(6, 182, 212, 0.1)'
+          boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
         }}>
           <h3 style={{
-            fontSize: '1.25rem',
+            fontSize: '1.125rem',
             fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 600,
-            color: '#e2e8f0',
+            fontWeight: 700,
+            color: 'var(--color-text, #1F2937)',
             marginBottom: '0.5rem',
             marginTop: 0
           }}>Kinematic Mechanism</h3>
           <p style={{
             fontSize: '0.875rem',
             fontFamily: "'Inter', sans-serif",
-            color: '#94a3b8',
+            color: 'var(--color-text-secondary, #6B7280)',
             marginBottom: '1.5rem',
-            marginTop: '0.5rem'
+            marginTop: '0.5rem',
+            lineHeight: 1.5
           }}>
             This is a pure kinematic mechanism. Motion is determined geometrically by linkages rather than by a dynamic ODE, so there is no equivalent RLC circuit analogy.
           </p>
@@ -158,17 +159,17 @@ export const CircuitDiagram = ({
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {isSliderCrank && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
-                  <span style={{ color: '#6366f1' }}>Stroke (2r)</span>
-                  <span style={{ color: '#06b6d4' }}>{formatNum(2 * (params.crank_length || 0))}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--kx-border, #DCE1F0)', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#264CB2', fontWeight: 600 }}>Stroke (2r)</span>
+                  <span style={{ color: '#173770' }}>{formatNum(2 * (params.crank_length || 0))} m</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
-                  <span style={{ color: '#f59e0b' }}>Crank/Rod ratio (λ)</span>
-                  <span style={{ color: '#06b6d4' }}>{formatNum((params.crank_length || 0) / (params.conn_length || 1))}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--kx-border, #DCE1F0)', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#173770', fontWeight: 600 }}>Crank/Rod ratio (λ)</span>
+                  <span style={{ color: '#173770' }}>{formatNum((params.crank_length || 0) / (params.conn_length || 1))}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem' }}>
-                  <span style={{ color: '#10b981' }}>Crank Speed (ω)</span>
-                  <span style={{ color: '#06b6d4' }}>{formatNum((params.crank_speed || 0) * 2 * Math.PI / 60)} rad/s</span>
+                  <span style={{ color: '#3561EE', fontWeight: 600 }}>Crank Speed (ω)</span>
+                  <span style={{ color: '#173770' }}>{formatNum((params.crank_speed || 0) * 2 * Math.PI / 60)} rad/s</span>
                 </div>
               </>
             )}
@@ -177,17 +178,17 @@ export const CircuitDiagram = ({
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Link Lengths</div>
-                    <div>a: <span style={{ color: '#6366f1' }}>{formatNum(params.link_crank)}</span></div>
-                    <div>b: <span style={{ color: '#6366f1' }}>{formatNum(params.link_coupler)}</span></div>
-                    <div>c: <span style={{ color: '#6366f1' }}>{formatNum(params.link_rocker)}</span></div>
-                    <div>d: <span style={{ color: '#6366f1' }}>{formatNum(params.link_ground)}</span></div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--kx-text-secondary, #526B8F)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Link Lengths</div>
+                    <div>a: <span style={{ color: '#264CB2', fontWeight: 600 }}>{formatNum(params.link_crank)} m</span></div>
+                    <div>b: <span style={{ color: '#3561EE', fontWeight: 600 }}>{formatNum(params.link_coupler)} m</span></div>
+                    <div>c: <span style={{ color: '#6F8FF4', fontWeight: 600 }}>{formatNum(params.link_rocker)} m</span></div>
+                    <div>d: <span style={{ color: '#8195B8', fontWeight: 600 }}>{formatNum(params.link_ground)} m</span></div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Freudenstein Coeffs</div>
-                    <div>K₁ = <span style={{ color: '#f59e0b' }}>{formatNum(params.link_ground / params.link_crank)}</span></div>
-                    <div>K₂ = <span style={{ color: '#f59e0b' }}>{formatNum(params.link_ground / params.link_rocker)}</span></div>
-                    <div>K₃ = <span style={{ color: '#f59e0b' }}>{formatNum((Math.pow(params.link_crank || 0, 2) - Math.pow(params.link_coupler || 0, 2) + Math.pow(params.link_rocker || 0, 2) + Math.pow(params.link_ground || 0, 2)) / (2 * (params.link_crank || 1) * (params.link_rocker || 1)))}</span></div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--kx-text-secondary, #526B8F)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Freudenstein Coeffs</div>
+                    <div>K₁ = <span style={{ color: '#173770', fontWeight: 600 }}>{formatNum(params.link_ground / params.link_crank)}</span></div>
+                    <div>K₂ = <span style={{ color: '#173770', fontWeight: 600 }}>{formatNum(params.link_ground / params.link_rocker)}</span></div>
+                    <div>K₃ = <span style={{ color: '#173770', fontWeight: 600 }}>{formatNum((Math.pow(params.link_crank || 0, 2) - Math.pow(params.link_coupler || 0, 2) + Math.pow(params.link_rocker || 0, 2) + Math.pow(params.link_ground || 0, 2)) / (2 * (params.link_crank || 1) * (params.link_rocker || 1)))}</span></div>
                   </div>
                 </div>
               </>

@@ -186,6 +186,70 @@ export function getSubstitutedEqn(simType, params) {
   return { eqn: '', computed: '' };
 }
 
+export function getStateSpaceMatrix(simType, params = {}) {
+  if (simType === 'simple_pendulum') {
+    const m = Number(params.mass) || 1.0;
+    const L = Number(params.length) || 1.0;
+    const g = Number(params.gravity) || 9.81;
+    const b = Number(params.damping) || 0.0;
+    const mL2 = m * L * L;
+    const b_eff = b / mL2;
+    const g_eff = g / L;
+
+    return {
+      symbolic: '\\begin{bmatrix} \\dot{\\theta} \\\\ \\ddot{\\theta} \\end{bmatrix} = \\begin{bmatrix} \\omega \\\\ -\\frac{b}{m L^2}\\omega - \\frac{g}{L}\\sin(\\theta) \\end{bmatrix}',
+      linearSymbolic: '\\begin{bmatrix} \\dot{\\theta} \\\\ \\dot{\\omega} \\end{bmatrix} = \\begin{bmatrix} 0 & 1 \\\\ -\\frac{g}{L} & -\\frac{b}{m L^2} \\end{bmatrix} \\begin{bmatrix} \\theta \\\\ \\omega \\end{bmatrix}',
+      evaluated: `\\begin{bmatrix} \\dot{\\theta} \\\\ \\ddot{\\theta} \\end{bmatrix} = \\begin{bmatrix} \\omega \\\\ -${b_eff.toFixed(3)}\\,\\omega - ${g_eff.toFixed(3)}\\,\\sin(\\theta) \\end{bmatrix}`,
+      linearEvaluated: `\\mathbf{A} = \\begin{bmatrix} 0 & 1 \\\\ -${g_eff.toFixed(3)} & -${b_eff.toFixed(3)} \\end{bmatrix}`
+    };
+  } else if (simType === 'compound_pendulum') {
+    const m = Number(params.mass) || 2.0;
+    const L = Number(params.length) || 1.0;
+    const g = Number(params.gravity) || 9.81;
+    const b = Number(params.damping) || 0.0;
+    const I = (1 / 3) * m * L * L;
+    const d = L / 2;
+    const b_eff = b / I;
+    const mgd_I = (m * g * d) / I;
+
+    return {
+      symbolic: '\\begin{bmatrix} \\dot{\\theta} \\\\ \\ddot{\\theta} \\end{bmatrix} = \\begin{bmatrix} \\omega \\\\ -\\frac{b}{I}\\omega - \\frac{m g d}{I}\\sin(\\theta) \\end{bmatrix}',
+      linearSymbolic: '\\begin{bmatrix} \\dot{\\theta} \\\\ \\dot{\\omega} \\end{bmatrix} = \\begin{bmatrix} 0 & 1 \\\\ -\\frac{m g d}{I} & -\\frac{b}{I} \\end{bmatrix} \\begin{bmatrix} \\theta \\\\ \\omega \\end{bmatrix}',
+      evaluated: `\\begin{bmatrix} \\dot{\\theta} \\\\ \\ddot{\\theta} \\end{bmatrix} = \\begin{bmatrix} \\omega \\\\ -${b_eff.toFixed(3)}\\,\\omega - ${mgd_I.toFixed(3)}\\,\\sin(\\theta) \\end{bmatrix}`,
+      linearEvaluated: `\\mathbf{A} = \\begin{bmatrix} 0 & 1 \\\\ -${mgd_I.toFixed(3)} & -${b_eff.toFixed(3)} \\end{bmatrix}, \\quad I = ${I.toFixed(3)}\\,\\text{kg}\\cdot\\text{m}^2`
+    };
+  } else if (simType === 'slider_crank') {
+    const r = Number(params.crank_length) || 0.1;
+    const l = Number(params.conn_length) || 0.3;
+    const N = Number(params.crank_speed) || 300.0;
+    const omega = N * (2 * Math.PI) / 60;
+    const lambda = r / l;
+    const v_scale = r * omega;
+    const a_scale = r * omega * omega;
+
+    return {
+      symbolic: '\\begin{bmatrix} x_p(\\theta) \\\\ v_p(\\theta) \\\\ a_p(\\theta) \\end{bmatrix} = \\begin{bmatrix} r\\cos(\\theta) + \\sqrt{l^2 - r^2\\sin^2(\\theta)} \\\\ -r\\omega\\left(\\sin(\\theta) + \\frac{\\lambda\\sin(2\\theta)}{2\\sqrt{1 - \\lambda^2\\sin^2(\\theta)}}\\right) \\\\ -r\\omega^2\\left(\\cos(\\theta) + \\lambda\\cos(2\\theta)\\right) \\end{bmatrix}',
+      evaluated: `\\begin{bmatrix} x_p(\\theta) \\\\ v_p(\\theta) \\\\ a_p(\\theta) \\end{bmatrix} = \\begin{bmatrix} ${r.toFixed(3)}\\cos(\\theta) + \\sqrt{${(l*l).toFixed(4)} - ${(r*r).toFixed(4)}\\sin^2(\\theta)} \\\\ -${v_scale.toFixed(2)}\\left(\\sin(\\theta) + \\frac{${lambda.toFixed(3)}\\sin(2\\theta)}{2\\sqrt{1 - ${(lambda*lambda).toFixed(3)}\\sin^2(\\theta)}}\\right) \\\\ -${a_scale.toFixed(1)}\\left(\\cos(\\theta) + ${lambda.toFixed(3)}\\cos(2\\theta)\\right) \\end{bmatrix}`,
+      linearEvaluated: `\\omega = ${omega.toFixed(2)}\\,\\text{rad/s}, \\quad \\lambda = \\frac{r}{l} = ${lambda.toFixed(3)}, \\quad \\text{Stroke} = ${(2*r).toFixed(3)}\\,\\text{m}`
+    };
+  } else if (simType === 'four_bar') {
+    const a = Number(params.link_crank) || 1.0;
+    const b = Number(params.link_coupler) || 2.5;
+    const c = Number(params.link_rocker) || 3.0;
+    const d = Number(params.link_ground) || 4.0;
+    const K1 = d / a;
+    const K2 = d / c;
+    const K3 = (a * a - b * b + c * c + d * d) / (2 * a * c);
+
+    return {
+      symbolic: '\\begin{bmatrix} K_1 \\\\ K_2 \\\\ K_3 \\end{bmatrix} = \\begin{bmatrix} d/a \\\\ d/c \\\\ \\frac{a^2 - b^2 + c^2 + d^2}{2 a c} \\end{bmatrix}, \\quad K_1\\cos(\\theta_4) - K_2\\cos(\\theta_2) + K_3 = \\cos(\\theta_2 - \\theta_4)',
+      evaluated: `\\begin{bmatrix} K_1 \\\\ K_2 \\\\ K_3 \\end{bmatrix} = \\begin{bmatrix} ${K1.toFixed(3)} \\\\ ${K2.toFixed(3)} \\\\ ${K3.toFixed(3)} \\end{bmatrix}, \\quad ${K1.toFixed(3)}\\cos(\\theta_4) - ${K2.toFixed(3)}\\cos(\\theta_2) + ${K3.toFixed(3)} = \\cos(\\theta_2 - \\theta_4)`,
+      linearEvaluated: `\\begin{bmatrix} a \\cos(\\theta_2) + b \\cos(\\theta_3) - c \\cos(\\theta_4) - d \\\\ a \\sin(\\theta_2) + b \\sin(\\theta_3) - c \\sin(\\theta_4) \\end{bmatrix} = \\begin{bmatrix} 0 \\\\ 0 \\end{bmatrix}`
+    };
+  }
+  return { symbolic: '', evaluated: '', linearEvaluated: '' };
+}
+
 export const ANALOGY_TABLE = [
   { mechanical: 'Force F', electrical: 'Voltage V', unit_mech: 'N', unit_elec: 'V' },
   { mechanical: 'Velocity dx/dt', electrical: 'Current I', unit_mech: 'm/s', unit_elec: 'A' },

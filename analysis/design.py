@@ -106,7 +106,7 @@ EXTRACTORS = {
 
 def _check_constraints(metrics, constraints):
     """
-    constraints: dict of {metric_key: {"min": float|None, "max": float|None}}
+    constraints: dict of {metric_key: {"min": float|None, "max": float|None}} or [lo, hi]
     Returns (passed: bool, margins: dict)
     """
     margins = {}
@@ -117,8 +117,15 @@ def _check_constraints(metrics, constraints):
         if val is None:
             continue
 
-        lo = bounds.get("min")
-        hi = bounds.get("max")
+        if isinstance(bounds, (list, tuple)):
+            lo = float(bounds[0]) if len(bounds) > 0 and bounds[0] is not None else None
+            hi = float(bounds[1]) if len(bounds) > 1 and bounds[1] is not None else None
+        elif isinstance(bounds, dict):
+            lo = float(bounds["min"]) if bounds.get("min") is not None and bounds.get("min") != '' else None
+            hi = float(bounds["max"]) if bounds.get("max") is not None and bounds.get("max") != '' else None
+        else:
+            lo = None
+            hi = None
 
         if lo is not None and hi is not None:
             centre = (lo + hi) / 2
@@ -174,10 +181,14 @@ def run_design_sweep(sim_type, constraints, param_ranges, fixed_params, n_points
     varied_keys = list(param_ranges.keys())
 
     # Build 1-D sweep arrays for each param
+    def _parse_bounds(b):
+        if isinstance(b, (list, tuple)):
+            return float(b[0]), float(b[1])
+        return float(b["min"]), float(b["max"])
+
     sweep_grids = {}
     for k, bounds in param_ranges.items():
-        lo = float(bounds["min"])
-        hi = float(bounds["max"])
+        lo, hi = _parse_bounds(bounds)
         sweep_grids[k] = np.linspace(lo, hi, n_points).tolist()
 
     # Cartesian product (cap at 1000 total evals)
@@ -190,8 +201,7 @@ def run_design_sweep(sim_type, constraints, param_ranges, fixed_params, n_points
     if total > 500:
         n_points = max(3, int(500 ** (1 / max(1, len(varied_keys)))))
         for k, bounds in param_ranges.items():
-            lo = float(bounds["min"])
-            hi = float(bounds["max"])
+            lo, hi = _parse_bounds(bounds)
             sweep_grids[k] = np.linspace(lo, hi, n_points).tolist()
         all_axes = [sweep_grids[k] for k in varied_keys]
 
@@ -246,8 +256,8 @@ def run_design_sweep(sim_type, constraints, param_ranges, fixed_params, n_points
                 # Set remaining varied params to midpoint
                 for k in varied_keys:
                     if k not in (k0, k1):
-                        b = param_ranges[k]
-                        params[k] = (float(b["min"]) + float(b["max"])) / 2
+                        lo, hi = _parse_bounds(param_ranges[k])
+                        params[k] = (lo + hi) / 2
 
                 try:
                     metrics = extractor(params)

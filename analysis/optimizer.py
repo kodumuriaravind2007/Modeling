@@ -54,41 +54,42 @@ OBJECTIVES = {
 def _compute_objective(sim_type, params, objective_key):
     try:
         if sim_type == "simple_pendulum":
-            r = simple_pendulum_rk45(
-                params["length"], params["mass"], params["gravity"],
-                params.get("damping", 0.0), params.get("theta0", 30),
-                params.get("omega0", 0), params.get("dt", 0.01), params.get("t_max", 10),
-            )
             if objective_key == "period":
                 return simple_pendulum_elliptic_period(
                     params["length"], params["gravity"], params.get("theta0", 30)
                 )
-            elif objective_key == "energy_drift_pct":
+            r = simple_pendulum_rk45(
+                params["length"], params["mass"], params["gravity"],
+                params.get("damping", 0.0), params.get("theta0", 30),
+                params.get("omega0", 0), params.get("dt", 0.02), params.get("t_max", 3.0),
+            )
+            if objective_key == "energy_drift_pct":
                 e = r["total_E"]
                 return (max(e) - min(e)) / e[0] * 100 if e[0] != 0 else 0.0
             elif objective_key == "max_omega":
                 return max(abs(w) for w in r["omega"])
 
         elif sim_type == "compound_pendulum":
-            r = compound_pendulum_rk45(
-                params["length"], params["mass"], params["gravity"],
-                params.get("damping", 0.0), params.get("theta0", 30),
-                0, params.get("dt", 0.01), params.get("t_max", 10),
-            )
             if objective_key == "period":
                 return compound_pendulum_period(params["length"], params["gravity"])
             elif objective_key == "L_eff":
-                return r["L_eff"]
-            elif objective_key == "energy_drift_pct":
+                return (2 / 3) * params["length"]
+            r = compound_pendulum_rk45(
+                params["length"], params["mass"], params["gravity"],
+                params.get("damping", 0.0), params.get("theta0", 30),
+                0, params.get("dt", 0.02), params.get("t_max", 3.0),
+            )
+            if objective_key == "energy_drift_pct":
                 e = r["total_E"]
                 return (max(e) - min(e)) / e[0] * 100 if e[0] != 0 else 0.0
 
         elif sim_type == "slider_crank":
+            if objective_key == "stroke":
+                return 2.0 * params["crank_length"]
             r = slider_crank_kinematics(
                 params["crank_length"], params["conn_length"],
-                params["crank_speed"], params.get("dt", 0.001), params.get("t_max", 2.0),
+                params["crank_speed"], params.get("dt", 0.005), params.get("t_max", 1.0),
             )
-            if objective_key == "stroke":   return r["stroke"]
             if objective_key == "v_max":    return r["v_max"]
             if objective_key == "a_max":    return r["a_max"]
 
@@ -96,7 +97,7 @@ def _compute_objective(sim_type, params, objective_key):
             r = four_bar_kinematics(
                 params["link_ground"], params["link_crank"],
                 params["link_coupler"], params["link_rocker"],
-                params["crank_speed"], params.get("dt", 0.005), params.get("t_max", 5.0),
+                params["crank_speed"], params.get("dt", 0.01), params.get("t_max", 2.0),
             )
             if objective_key == "rocker_range_deg": return r["rocker_range_deg"]
             if objective_key == "max_omega4":
@@ -111,14 +112,14 @@ def _compute_objective(sim_type, params, objective_key):
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
 def run_optimization(sim_type, objective_key, direction, param_bounds, fixed_params,
-                     max_iter=60, popsize=10):
+                     max_iter=30, popsize=6):
     """
     Parameters
     ----------
     sim_type       : str
     objective_key  : str — one of OBJECTIVES[sim_type].keys()
     direction      : "minimize" | "maximize"
-    param_bounds   : {param_key: [lo, hi]}  — params to optimize
+    param_bounds   : {param_key: [lo, hi]} or {param_key: {min, max}}
     fixed_params   : {param_key: value}     — held constant
     max_iter       : int — differential evolution iterations
     popsize        : int — population size multiplier
@@ -134,8 +135,13 @@ def run_optimization(sim_type, objective_key, direction, param_bounds, fixed_par
       n_evaluations
     }
     """
+    def _parse_lo_hi(b):
+        if isinstance(b, (list, tuple)):
+            return float(b[0]), float(b[1])
+        return float(b["min"]), float(b["max"])
+
     opt_keys  = list(param_bounds.keys())
-    bounds    = [(float(param_bounds[k][0]), float(param_bounds[k][1])) for k in opt_keys]
+    bounds    = [_parse_lo_hi(param_bounds[k]) for k in opt_keys]
     sign      = 1.0 if direction == "minimize" else -1.0
 
     convergence_history = []
@@ -199,15 +205,16 @@ def run_optimization(sim_type, objective_key, direction, param_bounds, fixed_par
         optimal_params[k] = round(float(v), 6)
 
     optimal_value = _compute_objective(sim_type, optimal_params, objective_key)
+    opt_val_num = float(optimal_value) if optimal_value is not None else 0.0
 
     # Ensure convergence history is populated
     if not convergence_history:
-        convergence_history = [{"iteration": 1, "value": round(float(optimal_value), 6)}]
+        convergence_history = [{"iteration": 1, "value": round(opt_val_num, 6)}]
 
     # Add final point
     convergence_history.append({
         "iteration": eval_count[0],
-        "value": round(float(optimal_value), 6),
+        "value": round(opt_val_num, 6),
     })
 
     # Sort by iteration

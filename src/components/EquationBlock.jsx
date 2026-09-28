@@ -17,7 +17,7 @@ import 'katex/dist/katex.min.css';
  * @param {string} [props.className=''] - Additional CSS class
  * @returns {React.JSX.Element} The rendered equation block
  */
-export const EquationBlock = ({ latex, label, displayMode = true, className = '' }) => {
+export const EquationBlock = React.memo(({ latex, label, displayMode = true, className = '' }) => {
   const html = useMemo(() => {
     try {
       return katex.renderToString(latex, {
@@ -39,7 +39,7 @@ export const EquationBlock = ({ latex, label, displayMode = true, className = ''
       />
     </div>
   );
-};
+});
 
 /**
  * A card component that wraps multiple EquationBlocks or related content.
@@ -51,7 +51,7 @@ export const EquationBlock = ({ latex, label, displayMode = true, className = ''
  * @param {string} [props.className=''] - Additional CSS class
  * @returns {React.JSX.Element} The rendered equation card
  */
-export const EquationCard = ({ title, icon, children, className = '' }) => {
+export const EquationCard = React.memo(({ title, icon, children, className = '' }) => {
   return (
     <div className={`equation-card ${className}`.trim()}>
       <div className="equation-card-header">
@@ -63,7 +63,7 @@ export const EquationCard = ({ title, icon, children, className = '' }) => {
       </div>
     </div>
   );
-};
+});
 
 /**
  * A component that displays parameter substitutions in a row of chips.
@@ -74,7 +74,7 @@ export const EquationCard = ({ title, icon, children, className = '' }) => {
  * @param {string} [props.className=''] - Additional CSS class
  * @returns {React.JSX.Element} The rendered parameter substitution row
  */
-export const ParamSubstitution = ({ label, items, className = '' }) => {
+export const ParamSubstitution = React.memo(({ label, items, className = '' }) => {
   return (
     <div className={`param-substitution ${className}`.trim()}>
       {label && <span className="param-substitution-label">{label}: </span>}
@@ -90,4 +90,4 @@ export const ParamSubstitution = ({ label, items, className = '' }) => {
       </div>
     </div>
   );
-};
+});

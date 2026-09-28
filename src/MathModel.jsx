@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { EquationBlock, EquationCard, ParamSubstitution } from './components/EquationBlock';
 import { FBDiagram } from './components/FBDiagram';
 import { CircuitDiagram } from './components/CircuitDiagram';
-import { MATH_MODELS, computeAnalogy, getSubstitutedEqn, ANALOGY_TABLE } from './mathModels';
+import { MATH_MODELS, computeAnalogy, getSubstitutedEqn, getStateSpaceMatrix, ANALOGY_TABLE } from './mathModels';
 
 const MathModel = ({ simType, params }) => {
   const [showAnalogy, setShowAnalogy] = useState(true);
@@ -17,8 +17,7 @@ const MathModel = ({ simType, params }) => {
   const model = MATH_MODELS[simType];
   const analogy = useMemo(() => computeAnalogy(simType, params), [simType, params]);
   const substituted = useMemo(() => getSubstitutedEqn(simType, params), [simType, params]);
-
-  if (!model) return null;
+  const stateMatrix = useMemo(() => getStateSpaceMatrix(simType, params), [simType, params]);
 
   const isPendulum = simType === 'simple_pendulum' || simType === 'compound_pendulum';
 
@@ -48,6 +47,8 @@ const MathModel = ({ simType, params }) => {
     if (analogy.zeta === 1) return 'Critically Damped';
     return 'Overdamped';
   }, [isPendulum, analogy]);
+
+  if (!model) return null;
 
   return (
     <div className="math-model-panel">
@@ -102,8 +103,14 @@ const MathModel = ({ simType, params }) => {
           )}
 
           {/* State Space Form */}
-          <EquationCard title="State Space Representation" icon="🔄">
-            <EquationBlock latex={model.stateVector} />
+          <EquationCard title="State Space & Matrix Form" icon="🔄">
+            <EquationBlock latex={stateMatrix.symbolic || model.stateVector} label="Symbolic State Derivative Vector" />
+            {stateMatrix.evaluated && (
+              <EquationBlock latex={stateMatrix.evaluated} label="Live Evaluated Dynamic Matrix (Substituted)" />
+            )}
+            {stateMatrix.linearEvaluated && (
+              <EquationBlock latex={stateMatrix.linearEvaluated} label="Linear State Matrix / System Metric" />
+            )}
           </EquationCard>
 
           {/* Energy Equations (pendulums only) */}
@@ -203,28 +210,60 @@ const MathModel = ({ simType, params }) => {
             </EquationCard>
           )}
 
-          {/* Parameter Definitions Table */}
+          {/* Parameter Definitions */}
           <EquationCard title="Parameter Definitions" icon="📋">
-            <table className="param-def-table">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Name</th>
-                  <th>Unit</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {model.parameters.map((p, i) => (
-                  <tr key={i}>
-                    <td className="param-symbol-cell">{p.symbol}</td>
-                    <td>{p.name}</td>
-                    <td className="unit-cell">{p.unit}</td>
-                    <td className="desc-cell">{p.description}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="param-specs-container">
+              <div className="param-spec-grid">
+                {model.parameters.map((p, i) => {
+                  // Resolve live value from params
+                  let liveVal = null;
+                  if (simType === 'slider_crank') {
+                    if (p.symbol === 'r') liveVal = Number(params?.crank_length || 0.1).toFixed(3);
+                    if (p.symbol === 'l') liveVal = Number(params?.conn_length || 0.3).toFixed(3);
+                    if (p.symbol === 'N') liveVal = Number(params?.crank_speed || 60).toFixed(0);
+                  } else if (simType === 'four_bar') {
+                    if (p.symbol === 'a') liveVal = Number(params?.link_crank || 1.0).toFixed(2);
+                    if (p.symbol === 'b') liveVal = Number(params?.link_coupler || 2.5).toFixed(2);
+                    if (p.symbol === 'c') liveVal = Number(params?.link_rocker || 3.0).toFixed(2);
+                    if (p.symbol === 'd') liveVal = Number(params?.link_ground || 4.0).toFixed(2);
+                  } else if (simType === 'simple_pendulum') {
+                    if (p.symbol === 'm') liveVal = Number(params?.mass || 1.0).toFixed(2);
+                    if (p.symbol === 'L') liveVal = Number(params?.length || 1.0).toFixed(2);
+                    if (p.symbol === 'g') liveVal = Number(params?.gravity || 9.81).toFixed(2);
+                    if (p.symbol === 'b') liveVal = Number(params?.damping || 0.05).toFixed(3);
+                  } else if (simType === 'compound_pendulum') {
+                    if (p.symbol === 'm') liveVal = Number(params?.mass || 2.0).toFixed(2);
+                    if (p.symbol === 'L') liveVal = Number(params?.length || 1.0).toFixed(2);
+                    if (p.symbol === 'g') liveVal = Number(params?.gravity || 9.81).toFixed(2);
+                    if (p.symbol === 'b') liveVal = Number(params?.damping || 0.1).toFixed(3);
+                    if (p.symbol === 'd') liveVal = ((Number(params?.length || 1.0)) / 2).toFixed(2);
+                  }
+
+                  return (
+                    <div key={i} className="param-spec-card">
+                      <div className="param-card-top">
+                        <div className="param-symbol-badge">
+                          <EquationBlock latex={p.symbol} displayMode={false} />
+                        </div>
+                        <div className="param-title-group">
+                          <span className="param-spec-name">{p.name}</span>
+                          <span className="param-unit-pill">{p.unit}</span>
+                        </div>
+                        {liveVal !== null && (
+                          <div className="param-live-badge" title="Live configured value">
+                            <span className="live-dot"></span>
+                            <span className="live-val-text">{liveVal} {p.unit}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="param-card-desc">
+                        {p.description}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </EquationCard>
         </div>
       </div>
@@ -232,4 +271,4 @@ const MathModel = ({ simType, params }) => {
   );
 };
 
-export default MathModel;
+export default React.memo(MathModel);

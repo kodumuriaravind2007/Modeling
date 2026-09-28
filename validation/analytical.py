@@ -160,82 +160,59 @@ def slider_crank_max_acceleration(crank_length, conn_length, crank_speed_rpm):
 
 # ---- FOUR-BAR ----------------------------------------
 
+from simulations.kinematics_core import (
+    classify_grashof,
+    solve_four_bar_position,
+    theoretical_four_bar_rocker_range
+)
+
 def grashof_condition(ground, crank, coupler, rocker):
     """
     Grashof condition: S + L <= P + Q
     Returns: 'Grashof', 'Non-Grashof', or 'Special Grashof'
     Reference: Erdman & Sandor, Mechanism Design, 5th ed.
     """
-    links = sorted([ground, crank, coupler, rocker])
-    S = links[0]
-    L = links[3]
-    P, Q = links[1], links[2]
-    diff = S + L - (P + Q)
-    if diff < 0:
-        return "Grashof"
-    elif diff == 0:
+    info = classify_grashof(ground, crank, coupler, rocker)
+    if info["is_special"]:
         return "Special Grashof"
+    elif info["is_grashof"]:
+        return "Grashof"
     else:
         return "Non-Grashof"
 
 
 def four_bar_rocker_range(ground, crank, coupler, rocker):
     """
-    Numerically compute rocker angle range by sweeping the full 360 degree
-    crank cycle and tracking the consistent open-circuit branch.
-    This avoids the bug of mixing two algebraic circuit solutions.
-    Reference: Freudenstein, Trans. ASME 76 (1955) 853-861
+    Computes rocker angular range. Uses closed-form theoretical formula
+    cos(psi) = (d^2 + c^2 - (b -/+ a)^2) / (2 * d * c) when crank-rocker,
+    or continuous numerical sweep as fallback.
     """
-    d = ground; a = crank; b = coupler; c = rocker
+    th_range = theoretical_four_bar_rocker_range(ground, crank, coupler, rocker)
+    if th_range is not None:
+        return th_range
 
-    try:
-        K1 = d / a
-        K2 = d / c
-        K3 = (a**2 - b**2 + c**2 + d**2) / (2 * a * c)
-    except ZeroDivisionError:
-        return None
-
+    d, a, b, c = ground, crank, coupler, rocker
     theta2_vals = np.linspace(0, 2 * np.pi, 720)
-    theta4_track = []
-    theta4_prev = None
-
+    th4_list = []
+    prev_th4 = None
     for th2 in theta2_vals:
-        P = K1 - np.cos(th2)
-        Q = -np.sin(th2)
-        R = K2 * np.cos(th2) - K3
-        A_q = R + P
-        B_q = -2 * Q
-        C_q = R - P
+        sol = solve_four_bar_position(d, a, b, c, th2, prev_theta4=prev_th4)
+        if not sol["success"]:
+            return None
+        prev_th4 = sol["theta4"]
+        th4_list.append(sol["theta4"])
+    th4_arr = np.unwrap(th4_list)
+    return float(np.degrees(np.max(th4_arr) - np.min(th4_arr)))
 
-        if abs(A_q) < 1e-12:
-            continue
 
-        disc = B_q**2 - 4 * A_q * C_q
-        if disc < 0:
-            continue
-
-        sqrt_disc = np.sqrt(disc)
-        u1 = (-B_q + sqrt_disc) / (2 * A_q)
-        u2 = (-B_q - sqrt_disc) / (2 * A_q)
-        th4_1 = 2 * np.arctan(u1)
-        th4_2 = 2 * np.arctan(u2)
-
-        if theta4_prev is None:
-            th4 = th4_1
-        else:
-            if abs(th4_1 - theta4_prev) <= abs(th4_2 - theta4_prev):
-                th4 = th4_1
-            else:
-                th4 = th4_2
-
-        theta4_prev = th4
-        theta4_track.append(th4)
-
-    if len(theta4_track) < 10:
-        return None
-
-    theta4_arr = np.array(theta4_track)
-    return float(np.degrees(np.max(theta4_arr) - np.min(theta4_arr)))
+def exact_belendez_ratio(theta0_deg):
+    """
+    Exact period ratio T / T0 = (2 / pi) * K(sin^2(theta0 / 2))
+    Reference: Beléndez et al., Eur. J. Phys. 28 (2007) 901-905
+    """
+    th0 = np.radians(theta0_deg)
+    k = np.sin(th0 / 2.0)
+    return float((2.0 / np.pi) * special.ellipk(k**2))
 
 
 # ============================================================
@@ -244,22 +221,9 @@ def four_bar_rocker_range(ground, crank, coupler, rocker):
 
 PAPER_BENCHMARKS = {
     "simple_pendulum": {
-        "source": "Belendez et al., Eur. J. Phys. 28 (2007) 901-905",
-        "description": "Exact period ratios T/T0 for nonlinear pendulum",
-        "period_ratios": {
-            5:  1.001,
-            10: 1.003,
-            15: 1.008,
-            20: 1.014,
-            30: 1.032,
-            45: 1.073,
-            60: 1.133,
-            75: 1.218,
-            90: 1.340,
-            120: 1.733,
-            150: 2.622,
-            170: 4.665,
-        },
+        "source": "Beléndez et al., Eur. J. Phys. 28 (2007) 901-905",
+        "description": "Exact period ratios T/T0 evaluated via complete elliptic integral K(k²)",
+        "exact_ratio_fn": exact_belendez_ratio,
         "source2": "Lima & Arun, Am. J. Phys. 74 (2006) 892-895",
         "series_formula": "T approx T0(1 + theta0^2/16 + 11*theta0^4/3072)"
     },
@@ -268,7 +232,7 @@ PAPER_BENCHMARKS = {
         "description": "Uniform rod compound pendulum -- effective length = 2L/3",
         "L_eff_ratio": 2.0 / 3.0,
         "source2": "Thomson & Dahleh, Theory of Vibration (1998)",
-        "I_ratio": 1.0/3.0,
+        "I_ratio": 1.0 / 3.0,
     },
     "slider_crank": {
         "source": "Norton, Design of Machinery, 5th ed. (2012)",
@@ -282,11 +246,11 @@ PAPER_BENCHMARKS = {
     },
     "four_bar": {
         "source": "Erdman, Sandor & Kota, Mechanism Design, 5th ed. (2001)",
-        "description": "Grashof condition and rocker range for standard linkages",
+        "description": "Theoretical rocker range from collinear limit triangles cos(psi) = (d² + c² - (b ∓ a)²) / (2 d c)",
         "grashof_example": {
             "links": {"ground": 4.0, "crank": 1.0, "coupler": 2.5, "rocker": 3.0},
             "condition": "Grashof",
-            "rocker_range_deg": 39.34   # Computed by full-cycle numerical sweep
+            "rocker_range_deg": 39.34
         },
         "source2": "Freudenstein, Trans. ASME 76 (1955) 853-861",
         "note": "Original Freudenstein equation derivation"

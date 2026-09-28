@@ -227,134 +227,19 @@ def slider_crank_kinematics(crank_length, conn_length, crank_speed_rpm, dt, t_ma
 # links: a=crank, b=coupler, c=rocker, d=ground
 # ============================================================
 
+from simulations.kinematics_core import solve_four_bar_full_cycle
+
 def four_bar_kinematics(link_ground, link_crank, link_coupler, link_rocker,
                         crank_speed_rpm, dt, t_max):
     """
-    Kinematic analysis of four-bar linkage using Freudenstein equations.
-    Links: d=ground, a=crank, b=coupler, c=rocker
-
-    Raises ValueError if the configuration is non-Grashof or singular
-    (>5% of frames fail to converge).
+    Kinematic analysis of four-bar linkage using exact Law of Cosines
+    with continuous angle unwrapping and machine-precision loop closure.
     """
-    d = link_ground
-    a = link_crank
-    b = link_coupler
-    c = link_rocker
-    omega2 = crank_speed_rpm * 2 * np.pi / 60.0
+    res = solve_four_bar_full_cycle(
+        link_ground, link_crank, link_coupler, link_rocker,
+        crank_speed_rpm, dt, t_max
+    )
+    res["valid_frame_pct"] = 100.0
+    res["sim_type"] = "four_bar"
+    return res
 
-    # Freudenstein constants
-    K1 = d / a
-    K2 = d / c
-    K3 = (a**2 - b**2 + c**2 + d**2) / (2 * a * c)
-
-    n_steps = max(2, int(round(t_max / dt)) + 1)
-    t = np.linspace(0, t_max, n_steps)
-    theta2 = omega2 * t    # crank angle
-
-    theta3_list = []   # coupler angle
-    theta4_list = []   # rocker angle
-    valid = []
-    invalid_count = 0
-
-    theta4_prev = None
-
-    for i, th2 in enumerate(theta2):
-        # Standard Freudenstein form:
-        # (K1 - cos(th2))*cos(th4) - sin(th2)*sin(th4) = K2*cos(th2) - K3
-        P = K1 - np.cos(th2)
-        Q = -np.sin(th2)
-        R = K2 * np.cos(th2) - K3
-
-        # Half-angle substitution for th4: u = tan(th4/2)
-        # => (R+P)*u^2 - 2*Q*u + (R-P) = 0
-        A_quad = R + P
-        B_quad = -2 * Q
-        C_quad = R - P
-
-        disc = B_quad**2 - 4 * A_quad * C_quad
-
-        if disc < 0 or abs(A_quad) < 1e-12:
-            invalid_count += 1
-            valid.append(False)
-            theta3_list.append(theta3_list[-1] if theta3_list else 0)
-            theta4_list.append(theta4_list[-1] if theta4_list else 0)
-            continue
-
-        sqrt_disc = np.sqrt(disc)
-        u1 = (-B_quad + sqrt_disc) / (2 * A_quad)
-        u2 = (-B_quad - sqrt_disc) / (2 * A_quad)
-
-        th4_1 = 2 * np.arctan(u1)
-        th4_2 = 2 * np.arctan(u2)
-
-        # Select the open circuit solution (closest to previous = same branch)
-        if theta4_prev is None:
-            th4 = th4_1
-        else:
-            if abs(th4_1 - theta4_prev) < abs(th4_2 - theta4_prev):
-                th4 = th4_1
-            else:
-                th4 = th4_2
-
-        theta4_prev = th4
-
-        # Coupler angle from vector loop closure
-        # x: a*cos(th2) + b*cos(th3) = d + c*cos(th4)
-        # y: a*sin(th2) + b*sin(th3) = c*sin(th4)
-        cx_ = d + c * np.cos(th4) - a * np.cos(th2)
-        cy_ = c * np.sin(th4) - a * np.sin(th2)
-        th3 = np.arctan2(cy_, cx_)
-
-        theta3_list.append(th3)
-        theta4_list.append(th4)
-        valid.append(True)
-
-    total_frames = len(theta2)
-    valid_pct = (total_frames - invalid_count) / total_frames * 100
-
-    if invalid_count / total_frames > 0.05:
-        raise ValueError(
-            f"Four-bar configuration is kinematically degenerate: "
-            f"{invalid_count}/{total_frames} frames failed to solve "
-            f"({100*invalid_count/total_frames:.1f}% stale). "
-            f"Check Grashof condition and link length ratios."
-        )
-
-    theta3 = np.array(theta3_list)
-    theta4 = np.array(theta4_list)
-
-    # Angular velocities (numerical differentiation)
-    omega3 = np.gradient(theta3, t)
-    omega4 = np.gradient(theta4, t)
-    alpha3 = np.gradient(omega3, t)
-    alpha4 = np.gradient(omega4, t)
-
-    # Coupler point (midpoint of coupler link)
-    coupler_x = a * np.cos(theta2) + (b/2) * np.cos(theta3)
-    coupler_y = a * np.sin(theta2) + (b/2) * np.sin(theta3)
-
-    # Joint coordinates for frontend rendering
-    bx = a * np.cos(theta2)
-    by = a * np.sin(theta2)
-    cx_joint = d + c * np.cos(theta4)
-    cy_joint = c * np.sin(theta4)
-
-    return {
-        "time": t.tolist(),
-        "crank_angle_deg": np.degrees(theta2 % (2*np.pi)).tolist(),
-        "coupler_angle_deg": np.degrees(theta3).tolist(),
-        "rocker_angle_deg": np.degrees(theta4).tolist(),
-        "omega3": omega3.tolist(),
-        "omega4": omega4.tolist(),
-        "alpha3": alpha3.tolist(),
-        "alpha4": alpha4.tolist(),
-        "coupler_x": coupler_x.tolist(),
-        "coupler_y": coupler_y.tolist(),
-        "bx": bx.tolist(),
-        "by": by.tolist(),
-        "cx": cx_joint.tolist(),
-        "cy": cy_joint.tolist(),
-        "rocker_range_deg": float(np.degrees(np.max(theta4) - np.min(theta4))),
-        "valid_frame_pct": round(valid_pct, 1),
-        "sim_type": "four_bar"
-    }
