@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { solveFourBarPosition, computeReachableInputArc } from './core/kinematics.js';
+import { checkFeasibility, FEASIBILITY_STATUS } from './core/feasibility.js';
 
 // ─── Exact Closed-Form Four-Bar Kinematic Loop Closure Solver ──────────────────
 // Uses unified Law of Cosines formulation from src/core/kinematics.js
@@ -1468,6 +1469,7 @@ export const Scene3D = ({
   animIdxRef.current = animIdx;
   const simTypeRef = useRef(simType);
   simTypeRef.current = simType;
+  const lastFramedSimTypeRef = useRef(null);
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
   const animSpeedRef = useRef(animSpeed);
@@ -1600,8 +1602,11 @@ export const Scene3D = ({
       const deltaSec = Math.min(Math.max(0, (now - lastTickTimeRef.current) / 1000), 0.08);
       lastTickTimeRef.current = now;
 
-      // Advance continuous physical time and crank phase smoothly when playing
-      if (isPlayingRef.current && !isDraggingRef.current) {
+      // Advance continuous physical time and crank phase smoothly ONLY when playing and case is physically valid
+      const currentFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
+      const isCaseCorrect = currentFeas.status === FEASIBILITY_STATUS.OK;
+
+      if (isPlayingRef.current && !isDraggingRef.current && isCaseCorrect) {
         const deltaAdvance = deltaSec * (animSpeedRef.current || 1.0);
         continuousTimeRef.current += deltaAdvance;
 
@@ -2480,10 +2485,13 @@ export const Scene3D = ({
       floorRef.current.position.y = floorY;
     }
 
-    // Reframe camera target
+    // Reframe camera target ONLY when switching mechanism types or on initial mount!
+    // Never reframe or jump camera when the user is simply tuning parameter sliders!
     const camera = cameraRef.current;
     const controls = controlsRef.current;
-    if (camera && controls) {
+    const isNewMechanism = lastFramedSimTypeRef.current !== simType;
+    if (camera && controls && isNewMechanism) {
+      lastFramedSimTypeRef.current = simType;
       const center = targetCenterRef.current;
       const d = viewDistRef.current;
       controls.target.copy(center);
@@ -2509,8 +2517,9 @@ export const Scene3D = ({
 
       const liveData = simDataRef.current;
       const liveParams = paramsRef.current;
-      const curIdx = animIdxRef.current;
-      const playing = isPlayingRef.current;
+      const feas = checkFeasibility(parts.type, liveParams);
+      const isCaseCorrect = feas.status === FEASIBILITY_STATUS.OK;
+      const playing = isPlayingRef.current && isCaseCorrect;
 
       // Clear motion trail on manual seek/scrub while paused
       if (lastCurIdxRef.current !== null && Math.abs(curIdx - lastCurIdxRef.current) > 1 && !playing) {

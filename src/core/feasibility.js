@@ -78,6 +78,22 @@ export function checkFeasibility(simType, params = {}) {
       const g = classifyGrashof(d, a, b, c);
       metrics.grashof_type = g.type;
       metrics.shortest_link = g.shortestLink || g.shortest || 'crank';
+      const s0 = Math.abs(d - a);
+      const s180 = d + a;
+      const cosMu1 = (b * b + c * c - s0 * s0) / (2.0 * b * c);
+      const cosMu2 = (b * b + c * c - s180 * s180) / (2.0 * b * c);
+      const muAngles = [];
+      for (const cMu of [cosMu1, cosMu2]) {
+        if (cMu >= -1.0 && cMu <= 1.0) {
+          const ang = Math.acos(cMu);
+          muAngles.push(ang);
+          muAngles.push(Math.PI - ang);
+        }
+      }
+      if (muAngles.length > 0) {
+        metrics.min_trans_deg = Math.min(...muAngles) * 180.0 / Math.PI;
+        metrics.max_trans_deg = Math.max(...muAngles) * 180.0 / Math.PI;
+      }
     }
   } else if (simType === 'slider_crank') {
     const r = Number(params.crank_length) || 0.1;

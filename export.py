@@ -254,12 +254,19 @@ def _create_multi_panel_plot(sim_data: dict, sim_type: str):
             axes[1].legend(loc="upper left", fontsize=7, framealpha=0.9)
             ax2_twin.legend(loc="upper right", fontsize=7, framealpha=0.9)
 
-            # Panel 3: Invariant Profile x vs Crank Angle
-            axes[2].plot(ca, x, color=c_blue, linewidth=1.6, label="Cycle Travel x(θ)")
+            # Panel 3: Invariant Profile x & Connecting Rod Obliquity φ vs Crank Angle θ
+            axes[2].plot(ca, x, color=c_blue, linewidth=1.6, label="Piston Position x(θ)")
+            phi = sim_data.get("conn_rod_angle_deg", [])[::2]
+            if phi and len(phi) == len(ca):
+                ax3_twin = axes[2].twinx()
+                ax3_twin.plot(ca, phi, color='#D97706', linewidth=1.3, linestyle='-.', label="Connecting Rod Obliquity φ (°)")
+                ax3_twin.set_ylabel("Rod Angle φ (°)", color='#D97706', fontsize=8, fontweight='bold')
+                ax3_twin.tick_params(colors='#D97706', labelsize=7.5)
+                ax3_twin.legend(loc="lower right", fontsize=6.8, framealpha=0.92)
             axes[2].set_xlabel("Crank Angle θ (°)", fontsize=8, color=c_navy)
-            axes[2].set_ylabel("Slider Position (m)", fontsize=8, color=c_navy, fontweight='bold')
-            axes[2].set_title("Panel C: Kinematic Constraint Invariant (Displacement x vs Crank Angle θ)", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
-            axes[2].legend(loc="upper right", fontsize=7, framealpha=0.9)
+            axes[2].set_ylabel("Slider Position x (m)", fontsize=8, color=c_blue, fontweight='bold')
+            axes[2].set_title("Panel C: Kinematic Cycle Invariant — Stroke & Connecting Rod Obliquity", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
+            axes[2].legend(loc="upper right", fontsize=6.8, framealpha=0.92)
 
         elif sim_type == "four_bar":
             t = sim_data.get("time", [])[::2]
@@ -268,6 +275,7 @@ def _create_multi_panel_plot(sim_data: dict, sim_type: str):
             c4 = sim_data.get("rocker_angle_deg", [])[::2]
             cx = sim_data.get("coupler_x", [])
             cy = sim_data.get("coupler_y", [])
+            mu = sim_data.get("transmission_angle_deg", [])[::2]
 
             # Panel 1: Link Angles
             axes[0].plot(t, ca, color=c_navy, linewidth=1.4, label="Input Crank θ₂ (°)")
@@ -277,12 +285,26 @@ def _create_multi_panel_plot(sim_data: dict, sim_type: str):
             axes[0].set_title("Panel A: Closed-Loop Angular Displacements vs Time", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
             axes[0].legend(loc="upper right", fontsize=7, framealpha=0.9)
 
-            # Panel 2: Rocker Oscillation Range
-            axes[1].plot(ca, c4, color=c_orange, linewidth=1.5, label="Rocker θ₄ vs Crank θ₂")
-            axes[1].set_xlabel("Crank Angle θ₂ (°)", fontsize=8, color=c_navy)
-            axes[1].set_ylabel("Rocker Angle θ₄ (°)", fontsize=8, color=c_navy, fontweight='bold')
-            axes[1].set_title("Panel B: Rocker Oscillation Transmission Characteristic", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
-            axes[1].legend(loc="upper right", fontsize=7, framealpha=0.9)
+            # Panel 2: Transmission Angle Envelope μ(θ₂) vs Crank Angle
+            if mu and len(mu) == len(ca):
+                min_mu_val = min(mu)
+                max_mu_val = max(mu)
+                axes[1].plot(ca, mu, color='#059669', linewidth=1.6, label="Transmission Angle μ(θ₂)")
+                axes[1].axhline(40, color='#DC2626', linestyle='--', linewidth=1.1, label="Min Safety Limit (40°)")
+                axes[1].axhline(140, color='#DC2626', linestyle='--', linewidth=1.1, label="Max Safety Limit (140°)")
+                axes[1].axhline(90, color='#8195B8', linestyle=':', linewidth=0.9, label="Ideal 90° Orthogonal")
+                axes[1].axhspan(40, 140, color='#DCFCE7', alpha=0.45, label="Safe Band (40°–140°)")
+                axes[1].set_ylim(max(0, min_mu_val - 12), min(180, max_mu_val + 12))
+                axes[1].set_xlabel("Input Crank Angle θ₂ (°)", fontsize=8, color=c_navy)
+                axes[1].set_ylabel("Transmission Angle μ (°)", fontsize=8, color=c_navy, fontweight='bold')
+                axes[1].set_title(f"Panel B: Transmission Angle Envelope — Min μ = {min_mu_val:.1f}°, Max μ = {max_mu_val:.1f}° (Safe: 40°–140°)", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
+                axes[1].legend(loc="upper right", fontsize=6.8, framealpha=0.92)
+            else:
+                axes[1].plot(ca, c4, color=c_orange, linewidth=1.5, label="Rocker θ₄ vs Crank θ₂")
+                axes[1].set_xlabel("Crank Angle θ₂ (°)", fontsize=8, color=c_navy)
+                axes[1].set_ylabel("Rocker Angle θ₄ (°)", fontsize=8, color=c_navy, fontweight='bold')
+                axes[1].set_title("Panel B: Rocker Oscillation Transmission Characteristic", fontsize=8.5, fontweight='bold', color=c_navy, pad=5)
+                axes[1].legend(loc="upper right", fontsize=7, framealpha=0.9)
 
             # Panel 3: Coupler Curve
             if cx and cy:
@@ -507,16 +529,17 @@ def generate_pdf(sim_data: dict, params: dict, validation: dict, sim_type: str) 
         ["Geometric Assembly", "Polygon / Triangular Closure Condition", "Satisfied", "PASS"],
     ]
     if sim_type == 'four_bar':
-        g_class = feasibility.get('metrics', {}).get('grashof_class', 'Class I')
-        min_mu = feasibility.get('metrics', {}).get('min_trans_deg', 45.0)
-        max_mu = feasibility.get('metrics', {}).get('max_trans_deg', 110.0)
+        g_class = feasibility.get('metrics', {}).get('grashof_type', feasibility.get('metrics', {}).get('grashof_class', 'Class I'))
+        min_mu = float(feasibility.get('metrics', {}).get('min_trans_deg', 45.0))
+        max_mu = float(feasibility.get('metrics', {}).get('max_trans_deg', 110.0))
         feas_rows.append(["Grashof Mobility", "s + l ≤ p + q Invariant Classification", str(g_class), "PASS"])
         trans_status = "WARNING (<40°)" if min_mu < 40 else "OPTIMAL (>40°)"
         feas_rows.append(["Transmission Angle", f"μ_min = {min_mu:.1f}°, μ_max = {max_mu:.1f}°", f"Margin: {min_mu:.1f}°", trans_status])
     elif sim_type == 'slider_crank':
-        lam = feasibility.get('metrics', {}).get('lambda_ratio', 0.33)
-        feas_rows.append(["Rod Slenderness", f"Obliquity Ratio λ = r/l = {lam:.3f}", "< 1.0 (Continuous Rotation)", "PASS" if lam < 1.0 else "FAIL"])
-        feas_rows.append(["Kinematic Dead Centers", f"Top Dead Center (TDC) / Bottom Dead Center (BDC)", f"Stroke S = {feasibility.get('metrics', {}).get('stroke', 0.2):.3f} m", "OPTIMAL"])
+        lam = float(feasibility.get('metrics', {}).get('lambda', feasibility.get('metrics', {}).get('lambda_ratio', 0.33)))
+        feas_rows.append(["Rod Slenderness", f"Obliquity Ratio λ = r/l = {lam:.3f}", "< 0.45 (Automotive Standard)", "PASS" if lam <= 0.45 else "WARNING (>0.45)"])
+        stroke_val = float(feasibility.get('metrics', {}).get('stroke_m', feasibility.get('metrics', {}).get('stroke', 0.2)))
+        feas_rows.append(["Kinematic Dead Centers", "Top Dead Center (TDC) / Bottom Dead Center (BDC)", f"Stroke S = {stroke_val:.3f} m", "OPTIMAL"])
     elif sim_type in ('simple_pendulum', 'compound_pendulum'):
         zeta = feasibility.get('metrics', {}).get('damping_ratio', 0.05)
         wn = feasibility.get('metrics', {}).get('natural_freq_hz', 0.5)

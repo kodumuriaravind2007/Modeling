@@ -62,7 +62,7 @@ export const FeasibilityPanel = React.memo(({ simType, params }) => {
         <div className="feasibility-violations-list">
           {checks.map((c, i) => {
             const checkKey = c.id || `check-${i}`;
-            const isExpanded = expandedChecks[checkKey] ?? (c.severity === 'error');
+            const isExpanded = expandedChecks[checkKey] ?? (c.severity === 'error' || c.severity === 'warning');
             const icon = c.severity === 'error' ? '❌' : c.severity === 'warning' ? '⚠️' : 'ℹ️';
 
             return (

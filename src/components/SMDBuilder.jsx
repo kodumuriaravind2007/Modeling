@@ -635,9 +635,6 @@ title('Frequency Response Bode Diagram G(j\\omega)');
           draggingBlockIdRef.current = b.id;
           dragOffsetRef.current = { x: mx - b.x, y: my - b.y };
           setSelectedId(b.id);
-          if (b.id === 'scope') {
-            setShowScopeModal(true);
-          }
           return;
         }
       }
@@ -734,11 +731,6 @@ title('Frequency Response Bode Diagram G(j\\omega)');
 
   const handleCanvasMouseUp = () => {
     if (draggingBlockIdRef.current) {
-      if (!hasDraggedRef.current) {
-        if (draggingBlockIdRef.current === 'scope') {
-          setShowScopeModal(true);
-        }
-      }
       draggingBlockIdRef.current = null;
     }
     if (draggingNodeIdRef.current) {

@@ -20,6 +20,7 @@ export const SimulinkScopeModal = ({
   onSeek
 }) => {
   const canvasRef = useRef(null);
+  const backdropMouseDownRef = useRef(false);
 
   const numMasses = simData?.x?.length || 1;
   const is2DOF = numMasses >= 2;
@@ -458,7 +459,17 @@ export const SimulinkScopeModal = ({
         justifyContent: 'center',
         padding: '16px'
       }}
-      onClick={onClose}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          backdropMouseDownRef.current = true;
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          backdropMouseDownRef.current = false;
+          onClose();
+        }
+      }}
     >
       <div
         style={{

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tooltip as ParamTooltip } from '../Tooltip';
 import { FeasibilityPanel } from './FeasibilityPanel';
+import { checkFeasibility, FEASIBILITY_STATUS } from '../core/feasibility.js';
 
 export const ControlsDrawer = ({
   isOpen,
@@ -93,20 +94,16 @@ export const ControlsDrawer = ({
 
   // Live Kinematic & Assembly Constraints Verification
   const activeParams = localParams || params;
-  let validationError = null;
+  const feas = checkFeasibility(simType, activeParams);
+  const isConstrainedOrInvalid = feas.status !== FEASIBILITY_STATUS.OK;
+  let validationError = isConstrainedOrInvalid ? `${feas.title}: ${feas.summary}` : null;
   let grashofInfo = null;
 
-  if (simType === 'slider_crank') {
-    const r = activeParams.crank_length ?? 0.1;
-    const l = activeParams.conn_length ?? 0.3;
-    if (r >= l) {
-      validationError = `Kinematic Constraint: Crank radius r (${r} m) must be strictly less than connecting rod length l (${l} m) for continuous 360° rotation.`;
-    }
-  } else if (simType === 'four_bar') {
-    const d = activeParams.link_ground ?? 4.0;
-    const a = activeParams.link_crank ?? 1.0;
-    const b = activeParams.link_coupler ?? 2.5;
-    const c = activeParams.link_rocker ?? 3.0;
+  if (simType === 'four_bar') {
+    const d = Number(activeParams.link_ground ?? 4.0);
+    const a = Number(activeParams.link_crank ?? 1.0);
+    const b = Number(activeParams.link_coupler ?? 2.5);
+    const c = Number(activeParams.link_rocker ?? 3.0);
 
     const linkLengths = [d, a, b, c].sort((x, y) => x - y);
     const S = linkLengths[0];
@@ -115,9 +112,7 @@ export const ControlsDrawer = ({
     const Q = linkLengths[2];
 
     const sumOthers = S + P + Q;
-    if (L >= sumOthers) {
-      validationError = `Assembly Constraint: Longest link (${L.toFixed(2)} m) exceeds sum of other links (${sumOthers.toFixed(2)} m). Linkage cannot assemble.`;
-    } else {
+    if (L < sumOthers) {
       const diff = (S + L) - (P + Q);
       if (diff < -1e-5) {
         if (a === S) grashofInfo = { class: 'Class I (Grashof)', type: 'Crank-Rocker' };
@@ -135,7 +130,12 @@ export const ControlsDrawer = ({
 
   return (
     <>
-      <aside className="controls-drawer" aria-label="Simulation Controls">
+      <aside
+        className="controls-drawer"
+        aria-label="Simulation Controls"
+        onPointerDown={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+      >
         {/* Drawer Header */}
         <div className="drawer-header">
           <div className="drawer-header-info">
@@ -383,26 +383,61 @@ export const ControlsDrawer = ({
         </div>
 
         {/* Drawer Footer Actions */}
-        <div className="drawer-footer">
-          <button
-            type="button"
-            className="btn-drawer-secondary"
-            onClick={onResetDefaults}
-          >
-            Reset Defaults
-          </button>
-          <button
-            type="button"
-            className="btn-drawer-primary"
-            onClick={() => {
-              onRunSimulation();
-              onClose();
-            }}
-            disabled={loading || !!validationError}
-            title={validationError ? 'Resolve validation warning before running' : 'Apply parameters and run simulation'}
-          >
-            {loading ? 'Computing...' : 'Run Simulation ▶'}
-          </button>
+        <div className="drawer-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {isConstrainedOrInvalid && (
+            <div style={{
+              background: feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+              border: `1.5px solid ${feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '#EF4444' : '#F59E0B'}`,
+              borderRadius: '8px',
+              padding: '10px 12px',
+              fontSize: '11px',
+              color: '#1E293B',
+              lineHeight: 1.45
+            }}>
+              <div style={{ fontWeight: 800, color: feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '#DC2626' : '#D97706', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
+                <span>{feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '⛔' : '⚠️'}</span>
+                <span>{feas.title}</span>
+              </div>
+              <div style={{ marginTop: '3px', color: '#334155', fontWeight: 500 }}>
+                {feas.summary}
+              </div>
+              {feas.checks?.[0]?.fix?.[0] && (
+                <div style={{ marginTop: '5px', fontSize: '10.5px', color: '#1D4ED8', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                  <span>💡</span>
+                  <span>{feas.checks[0].fix[0]}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            <button
+              type="button"
+              className="btn-drawer-secondary"
+              onClick={onResetDefaults}
+              style={{ flex: 1 }}
+            >
+              Reset Defaults
+            </button>
+            <button
+              type="button"
+              className="btn-drawer-primary"
+              onClick={() => {
+                if (isConstrainedOrInvalid) return;
+                onRunSimulation();
+                onClose();
+              }}
+              disabled={loading || isConstrainedOrInvalid}
+              style={{
+                flex: 2,
+                opacity: isConstrainedOrInvalid ? 0.6 : 1,
+                cursor: isConstrainedOrInvalid ? 'not-allowed' : 'pointer'
+              }}
+              title={isConstrainedOrInvalid ? `Cannot run: ${feas.title}. Please resolve constraints before running.` : 'Apply parameters and run simulation'}
+            >
+              {loading ? 'Computing...' : isConstrainedOrInvalid ? 'Constrained (Cannot Run)' : 'Run Simulation ▶'}
+            </button>
+          </div>
         </div>
       </aside>
     </>

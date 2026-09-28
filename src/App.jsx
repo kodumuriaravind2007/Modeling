@@ -37,7 +37,7 @@ const SIMULATIONS = {
     defaults: { length: 1.0, mass: 1.0, gravity: 9.81, damping: 0.1, theta0: 30, omega0: 0, dt: 0.01, t_max: 15 },
     presets: [
       { label: 'Earth Standard', params: { length: 1.0, mass: 1.0, gravity: 9.81, damping: 0.1, theta0: 30, omega0: 0 } },
-      { label: 'Moon Gravity',   params: { length: 1.0, mass: 1.0, gravity: 1.62, damping: 0.0, theta0: 30, omega0: 0 } },
+      { label: 'Moon Gravity',   params: { length: 1.0, mass: 1.0, gravity: 1.62, damping: 0.0, theta0: 30, omega0: 0, t_max: 20 } },
       { label: 'High Damping',   params: { length: 1.5, mass: 2.0, gravity: 9.81, damping: 1.2, theta0: 45, omega0: 0 } },
       { label: 'Large Angle',    params: { length: 2.0, mass: 1.5, gravity: 9.81, damping: 0.05, theta0: 90, omega0: 0 } },
     ],
@@ -87,9 +87,9 @@ const SIMULATIONS = {
     icon: '🔷',
     defaults: { link_ground: 4.0, link_crank: 1.0, link_coupler: 2.5, link_rocker: 3.0, crank_speed: 75, dt: 0.005, t_max: 5.0 },
     presets: [
-      { label: 'Crank-Rocker', params: { link_ground: 4.0, link_crank: 1.0, link_coupler: 2.5, link_rocker: 3.0, crank_speed: 75 } },
-      { label: 'Double-Rocker',params: { link_ground: 4.0, link_crank: 2.5, link_coupler: 2.0, link_rocker: 3.0, crank_speed: 55 } },
-      { label: 'Drag Link',    params: { link_ground: 2.0, link_crank: 3.0, link_coupler: 3.5, link_rocker: 4.0, crank_speed: 75 } },
+      { label: 'Crank-Rocker',             params: { link_ground: 4.0, link_crank: 1.0, link_coupler: 2.5, link_rocker: 3.0, crank_speed: 75 } },
+      { label: 'Quick-Return Rocker',       params: { link_ground: 3.5, link_crank: 1.0, link_coupler: 3.0, link_rocker: 2.8, crank_speed: 60 } },
+      { label: 'Drag Link (Double Crank)', params: { link_ground: 1.0, link_crank: 3.2, link_coupler: 3.0, link_rocker: 3.0, crank_speed: 75 } },
     ],
     sliders: [
       { key: 'link_ground',  label: 'Ground Link Length (d)', min: 1, max: 10, step: 0.1, unit: 'm' },
@@ -291,11 +291,14 @@ export default function App() {
     const liveVal = computeLiveValidation(sType, sParams, clientData);
     setValidation(liveVal);
 
+    const feas = checkFeasibility(sType, sParams);
+    const canPlay = startPlayback && (feas.status === FEASIBILITY_STATUS.OK);
+
     if (startPlayback) {
       setAnimIdx(0);
       frameRef.current = 0;
-      setIsPlaying(true);
-      playingRef.current = true;
+      setIsPlaying(canPlay);
+      playingRef.current = canPlay;
       drawCanvas(0, sParams, clientData);
     }
 
@@ -482,19 +485,21 @@ export default function App() {
     setSimData(clientData);
     setValidation(computeLiveValidation(type, newDefaults, clientData));
 
+    const feas = checkFeasibility(type, newDefaults);
+    const canPlay = feas.status === FEASIBILITY_STATUS.OK;
     setDesignRes(null);
     setSensRes(null);
     setVerifyRes(null);
     setReverseResult(null);
     setAnimIdx(0);
     frameRef.current = 0;
-    setIsPlaying(true);
-    playingRef.current = true;
+    setIsPlaying(canPlay);
+    playingRef.current = canPlay;
     if (animRef.current) cancelAnimationFrame(animRef.current);
     setDesignConstraints({});
 
     drawCanvas(0, newDefaults, clientData);
-    runSimulation(type, newDefaults, true);
+    runSimulation(type, newDefaults, canPlay);
   }, [drawCanvas, runSimulation]);
 
   // ─── Playback Controls ───
@@ -505,21 +510,13 @@ export default function App() {
     }
     if (!isPlaying) {
       const feas = checkFeasibility(simTypeRef.current, paramsRef.current);
-      if (feas.status === FEASIBILITY_STATUS.IMPOSSIBLE) {
-        showToast(`Cannot play: ${feas.title}`, 'error');
+      if (feas.status !== FEASIBILITY_STATUS.OK) {
+        const isConstrained = feas.status === FEASIBILITY_STATUS.WARNING;
+        showToast(
+          `Cannot play: Mechanism is ${isConstrained ? 'Functionally Constrained' : 'Infeasible'}. ${feas.summary || 'Adjust parameters to satisfy kinematic constraints.'}`,
+          isConstrained ? 'warning' : 'error'
+        );
         return;
-      }
-      const hasLockup = feas.checks.some(c =>
-        c.severity === 'error' ||
-        c.id === 'four_bar.non_grashof' ||
-        c.id === 'slider_crank.lockup'
-      );
-      if (hasLockup) {
-        showToast(`Cannot run: ${feas.summary || 'Mechanism cannot rotate through 360°'}`, 'warning');
-        return;
-      }
-      if (feas.status === FEASIBILITY_STATUS.WARNING) {
-        showToast(`Notice: Running with warning (${feas.summary})`, 'warning');
       }
     }
     const newPlaying = !isPlaying;
@@ -578,6 +575,7 @@ export default function App() {
     const len = simData?.time?.length || simData?.crank_angle_deg?.length || 1;
     let localIdx = frameRef.current;
     let lastTimestamp = null;
+    let lastReactUpdate = 0;
     let stepAccumulator = 0;
 
     const dt = simData?.params?.dt || params?.dt || (simType === 'slider_crank' ? 0.005 : simType === 'four_bar' ? 0.005 : 0.01);
@@ -587,6 +585,7 @@ export default function App() {
 
       if (lastTimestamp === null) {
         lastTimestamp = timestamp;
+        lastReactUpdate = timestamp;
       }
       const deltaMs = Math.min(timestamp - lastTimestamp, 100);
       lastTimestamp = timestamp;
@@ -600,9 +599,15 @@ export default function App() {
         stepAccumulator -= stepsToAdvance;
         localIdx = (localIdx + stepsToAdvance) % len;
         frameRef.current = localIdx;
-        setAnimIdx(localIdx);
         if (viewMode === '2d') {
           drawCanvas(localIdx);
+        }
+
+        // Decouple heavy React reconciliation from 60-144 FPS animation loop
+        // Throttling state update to ~30 FPS eliminates micro-stutters and dropped frames
+        if (timestamp - lastReactUpdate >= 32) {
+          lastReactUpdate = timestamp;
+          setAnimIdx(localIdx);
         }
       }
 
@@ -614,6 +619,7 @@ export default function App() {
     animRef.current = requestAnimationFrame(renderLoop);
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
+      setAnimIdx(frameRef.current);
     };
   }, [isPlaying, simData, animSpeed, viewMode, drawCanvas, simType, params]);
 

@@ -69,6 +69,19 @@ def check_feasibility(sim_type, params=None):
             g = classify_grashof(d, a, b, c)
             metrics['grashof_type'] = g['type']
             metrics['shortest_link'] = g['shortest']
+            s0 = abs(d - a)
+            s180 = d + a
+            c_mu1 = (b**2 + c**2 - s0**2) / (2.0 * b * c)
+            c_mu2 = (b**2 + c**2 - s180**2) / (2.0 * b * c)
+            mu_angs = []
+            for c_mu in (c_mu1, c_mu2):
+                if -1.0 <= c_mu <= 1.0:
+                    ang = np.arccos(c_mu)
+                    mu_angs.append(ang)
+                    mu_angs.append(np.pi - ang)
+            if mu_angs:
+                metrics['min_trans_deg'] = float(np.degrees(min(mu_angs)))
+                metrics['max_trans_deg'] = float(np.degrees(max(mu_angs)))
     elif sim_type == 'slider_crank':
         r = float(params.get('crank_length', 0.1))
         l = float(params.get('conn_length', 0.3))
