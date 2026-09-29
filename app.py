@@ -8,9 +8,14 @@ import os
 import json
 import logging
 import io
+import mimetypes
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
+
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('image/svg+xml', '.svg')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
@@ -46,7 +51,9 @@ from analysis.optimizer import run_optimization
 from analysis.sensitivity import run_sensitivity
 from analysis.reverse_solver import run_reverse_solve, REVERSE_TARGETS
 
-app = Flask(__name__, static_folder='dist', static_url_path='')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, 'dist')
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='')
 CORS(app)
 
 
@@ -769,8 +776,9 @@ def serve_frontend(path):
 
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
     print("=" * 60)
     print("  MECHANICAL SYSTEMS SIMULATION BACKEND")
-    print("  Running on http://localhost:5000")
+    print(f"  Running on http://0.0.0.0:{port}")
     print("=" * 60)
-    app.run(port=5000, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

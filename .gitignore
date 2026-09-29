@@ -35,7 +35,7 @@ wheels/
 !.env.example
 
 # Temporary / Dev
-dist/
+# Note: dist/ is tracked so Render.com can serve the built frontend immediately without needing node
 dist-ssr/
 scratch/
 screenshots/
