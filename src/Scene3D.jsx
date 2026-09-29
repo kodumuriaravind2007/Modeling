@@ -1175,23 +1175,26 @@ function buildElectricGearMotorWithCounterweight(scale, motorMat, finMat, steelM
   return { motorGroup, rotatingSpindle };
 }
 
-// Builds dual-flange industrial pillow-block clevis stand for ground mounts
+// Builds industrial pillow-block bearing pedestal for ground Joint D with full 360° front link clearance
 function buildClevisStand(height, width, depth, mountMat, steelMat, chromeMat) {
   const stand = new THREE.Group();
 
-  // Foundation foot plate
-  const footGeo = new THREE.BoxGeometry(width * 1.6, 0.035, depth * 1.5);
-  footGeo.translate(0, -height - 0.0175, 0);
+  // Foundation foot plate positioned on rear bed plate (z < 0)
+  const footWidth = width * 1.6;
+  const footHeight = 0.035;
+  const footDepth = depth * 1.4;
+  const footGeo = new THREE.BoxGeometry(footWidth, footHeight, footDepth);
+  footGeo.translate(0, -height - footHeight / 2, -depth * 0.45);
   const foot = new THREE.Mesh(footGeo, mountMat);
   foot.castShadow = true;
   stand.add(foot);
 
-  // 4 Hex Anchor Bolts
+  // Hex Anchor Bolts on rear foot
   const boltOffsets = [
-    [-width * 0.6, -height, -depth * 0.55],
-    [width * 0.6, -height, -depth * 0.55],
-    [-width * 0.6, -height, depth * 0.55],
-    [width * 0.6, -height, depth * 0.55]
+    [-width * 0.6, -height, -depth * 0.90],
+    [width * 0.6, -height, -depth * 0.90],
+    [-width * 0.6, -height, -depth * 0.10],
+    [width * 0.6, -height, -depth * 0.10]
   ];
   boltOffsets.forEach(([bx, by, bz]) => {
     const bGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.03, 12);
@@ -1200,36 +1203,42 @@ function buildClevisStand(height, width, depth, mountMat, steelMat, chromeMat) {
     stand.add(bMesh);
   });
 
-  // Dual upright ears: rear ear at z = -depth/2, front ear at z = +depth/2
-  [-depth / 2, depth / 2].forEach(zPos => {
-    const uprightGeo = new THREE.BoxGeometry(width, height, 0.024);
-    uprightGeo.translate(0, -height / 2, 0);
-    const upright = new THREE.Mesh(uprightGeo, mountMat);
-    upright.position.z = zPos;
-    upright.castShadow = true;
-    stand.add(upright);
+  // Heavy rear structural upright pedestal supporting the pivot bearing (located at z = -0.055)
+  const rearZ = -depth * 0.50;
+  const uprightGeo = new THREE.BoxGeometry(width, height, 0.035);
+  uprightGeo.translate(0, -height / 2, 0);
+  const upright = new THREE.Mesh(uprightGeo, mountMat);
+  upright.position.z = rearZ;
+  upright.castShadow = true;
+  stand.add(upright);
 
-    const headGeo = new THREE.CylinderGeometry(width / 2, width / 2, 0.024, 24);
-    headGeo.rotateX(Math.PI / 2);
-    const head = new THREE.Mesh(headGeo, mountMat);
-    head.position.z = zPos;
-    stand.add(head);
-  });
+  // Rounded cylindrical bearing hub on rear upright
+  const hubGeo = new THREE.CylinderGeometry(width * 0.58, width * 0.58, 0.045, 24);
+  hubGeo.rotateX(Math.PI / 2);
+  const hub = new THREE.Mesh(hubGeo, mountMat);
+  hub.position.z = rearZ;
+  hub.castShadow = true;
+  stand.add(hub);
 
-  // Main pivot bearing axle pin
-  const pinGeo = new THREE.CylinderGeometry(0.024, 0.024, depth * 1.48, 20);
+  // Main precision pivot spindle pin extending forward from rear bearing through Link 4 bore (z in [-0.09, 0.056])
+  const pinLength = 0.15;
+  const pinGeo = new THREE.CylinderGeometry(0.022, 0.022, pinLength, 20);
   pinGeo.rotateX(Math.PI / 2);
+  pinGeo.translate(0, 0, -0.015);
   const pin = new THREE.Mesh(pinGeo, steelMat);
   stand.add(pin);
 
-  // Polished chrome retaining end caps
-  [-depth * 0.74, depth * 0.74].forEach(zCap => {
-    const capGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.014, 6);
-    capGeo.rotateX(Math.PI / 2);
-    const cap = new THREE.Mesh(capGeo, chromeMat);
-    cap.position.z = zCap;
-    stand.add(cap);
-  });
+  // Polished chrome retaining end caps: rear cap at z = -0.09, front retaining washer cap at z = 0.056
+  const capGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.010, 6);
+  capGeo.rotateX(Math.PI / 2);
+
+  const rearCap = new THREE.Mesh(capGeo, chromeMat);
+  rearCap.position.z = -0.09;
+  stand.add(rearCap);
+
+  const frontCap = new THREE.Mesh(capGeo, chromeMat);
+  frontCap.position.z = 0.056;
+  stand.add(frontCap);
 
   return stand;
 }
@@ -1254,18 +1263,18 @@ function buildPivotPin(depth, steelMat, chromeMat) {
 }
 
 // ── Heavy CNC Precision Ground Machine Bed Plate with Dual T-Slots ───────────
-// Directly supports Joint A (gearmotor) and Joint D (clevis stand) with full clearance for rotating links
+// Directly supports Joint A (gearmotor) and Joint D (pillow-block pedestal) with full clearance for rotating links
 function buildProfessionalFourBarBed(dx, a_vis, mountMat, steelMat, chromeMat, darkSteelMat) {
   const bedGroup = new THREE.Group();
 
-  const bedWidth = dx + 0.75;
+  const bedWidth = Math.max(dx + 0.90, 1.4);
   const bedHeight = 0.09;
   const bedY = -0.18;
   const bedTopY = bedY + bedHeight / 2; // -0.135
   const bedBottomY = bedY - bedHeight / 2; // -0.225
 
   // 1. Heavy CNC Cast Iron Bed Plate Base (Rear section supporting motor & clevis)
-  // Positioned from z = -0.36 to z = -0.01 across full width
+  // Positioned from z = -0.36 to z = -0.01 across full width (never penetrates rotation plane z > 0)
   const mainBedDepth = 0.35;
   const mainBedZ = -0.36 + mainBedDepth / 2; // -0.185
   const mainBedGeo = new THREE.BoxGeometry(bedWidth, bedHeight, mainBedDepth);
@@ -1282,26 +1291,7 @@ function buildProfessionalFourBarBed(dx, a_vis, mountMat, steelMat, chromeMat, d
   topPlate.receiveShadow = true;
   bedGroup.add(topPlate);
 
-  // 2. Joint D Forward Mounting Boss (Supports the forward foot of the clevis stand)
-  // Extends from z = -0.01 to z = +0.10 under Joint D (x = dx)
-  const bossWidth = 0.32;
-  const bossDepth = 0.12;
-  const bossGeo = new THREE.BoxGeometry(bossWidth, bedHeight, bossDepth);
-  bossGeo.translate(dx, bedY, 0.05);
-  const bossMesh = new THREE.Mesh(bossGeo, mountMat);
-  bossMesh.castShadow = true;
-  bossMesh.receiveShadow = true;
-  bedGroup.add(bossMesh);
-
-  // Top plate for Joint D boss
-  const bossTopGeo = new THREE.BoxGeometry(bossWidth * 0.96, 0.012, bossDepth * 0.92);
-  bossTopGeo.translate(dx, bedTopY + 0.006, 0.05);
-  const bossTop = new THREE.Mesh(bossTopGeo, darkSteelMat);
-  bedGroup.add(bossTop);
-
-
-
-  // 4. Dual Precision Machined T-Slots along the top surface
+  // 2. Dual Precision Machined T-Slots along the top surface
   [-0.26, -0.11].forEach(zSlot => {
     const slotGeo = new THREE.BoxGeometry(bedWidth * 0.94, 0.015, 0.04);
     slotGeo.translate(dx / 2, bedTopY + 0.008, zSlot);
@@ -1315,11 +1305,11 @@ function buildProfessionalFourBarBed(dx, a_vis, mountMat, steelMat, chromeMat, d
     bedGroup.add(grooveMesh);
   });
 
-  // 5. Engineering Ground Hatching under Joint A and Joint D
+  // 3. Engineering Ground Hatching under Joint A and Joint D
   bedGroup.add(buildGroundHatchingGroup(0, bedBottomY - 0.005, 0.38, 0x526b8f));
   bedGroup.add(buildGroundHatchingGroup(dx, bedBottomY - 0.005, 0.38, 0x526b8f));
 
-  // 6. Anchor Fasteners (4 Hex bolts securing bedplate to foundation)
+  // 4. Anchor Fasteners (4 Hex bolts securing bedplate to foundation)
   [
     [-bedWidth * 0.44 + dx / 2, -0.30],
     [-bedWidth * 0.44 + dx / 2, -0.06],
@@ -1488,7 +1478,7 @@ export const Scene3D = ({
   const lastTickTimeRef = useRef(performance.now());
   const isDraggingRef = useRef(false);
   const currentDragAngleDegRef = useRef(params?.theta0 ?? 30);
-  const lastTh4Ref = useRef(Math.PI / 3);
+  const lastTh4Ref = useRef(null);
   const crankThetaRef = useRef(0);
   const lastCurIdxRef = useRef(animIdx);
   const prevPlayingRef = useRef(isPlaying);
@@ -2326,11 +2316,23 @@ export const Scene3D = ({
       const b_real = Number(params?.link_coupler) || 2.5;
       const c_real = Number(params?.link_rocker) || 3.0;
 
-      const scale = 2.4 / Math.max(1, d_real);
+      // Kinematic bounding box calculation across full theoretical reach
+      const xMinReal = Math.min(-a_real, d_real - c_real);
+      const xMaxReal = Math.max(a_real, d_real + c_real);
+      const yMinReal = -Math.max(a_real, c_real);
+      const yMaxReal = Math.max(a_real, c_real);
+
+      const spanX = Math.max(xMaxReal - xMinReal, 1.0);
+      const spanY = Math.max(yMaxReal - yMinReal, 1.0);
+      const maxSpan = Math.max(spanX, spanY);
+
+      // Desired visual span ~2.5 units in 3D world space
+      const scale = 2.5 / maxSpan;
       const dx = d_real * scale;
       const a_vis = a_real * scale;
       const b_vis = b_real * scale;
       const c_vis = c_real * scale;
+      const centerX = ((xMinReal + xMaxReal) / 2) * scale;
 
       // Heavy CNC Precision Ground Machine Bed Plate with Dual T-Slots (Like Before, Zero Collision)
       const baseBed = buildProfessionalFourBarBed(dx, a_vis, mountMat, steelPinMat, chromeMat, darkSteelMat);
@@ -2482,8 +2484,10 @@ export const Scene3D = ({
         d_real
       };
 
-      targetCenterRef.current.set(dx / 2, 0.40, 0);
-      viewDistRef.current = Math.max(2.8, dx * 1.35);
+      targetCenterRef.current.set(centerX, 0, 0);
+      viewDistRef.current = Math.max(3.2, maxSpan * scale * 1.45);
+      lastTh4Ref.current = null;
+      crankThetaRef.current = 0;
     }
 
     // Dynamic Floor & Grid Elevation Adjustment
@@ -2494,26 +2498,33 @@ export const Scene3D = ({
     }
 
     // Reframe camera target ONLY when switching mechanism types or on initial mount!
-    // Never reframe or jump camera when the user is simply tuning parameter sliders!
+    // When adjusting parameters or presets, preserve user's exact camera orientation
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     const isNewMechanism = lastFramedSimTypeRef.current !== simType;
-    if (camera && controls && isNewMechanism) {
-      lastFramedSimTypeRef.current = simType;
-      const center = targetCenterRef.current;
-      const d = viewDistRef.current;
-      controls.target.copy(center);
-      const currentView = cameraViewRef.current;
-      if (currentView === 'front') {
-        camera.position.set(center.x, center.y, center.z + d * 1.05);
-      } else if (currentView === 'top') {
-        camera.position.set(center.x, center.y + d * 1.25, center.z + 0.01);
-      } else if (currentView === 'side') {
-        camera.position.set(center.x + d * 1.15, center.y, center.z);
-      } else if (currentView !== 'rotate360') {
-        camera.position.set(center.x + d * 0.65, center.y + d * 0.45, center.z + d * 0.85);
+    if (camera && controls) {
+      if (isNewMechanism) {
+        lastFramedSimTypeRef.current = simType;
+        const center = targetCenterRef.current;
+        const d = viewDistRef.current;
+        controls.target.copy(center);
+        const currentView = cameraViewRef.current;
+        if (currentView === 'front') {
+          camera.position.set(center.x, center.y, center.z + d * 1.05);
+        } else if (currentView === 'top') {
+          camera.position.set(center.x, center.y + d * 1.25, center.z + 0.01);
+        } else if (currentView === 'side') {
+          camera.position.set(center.x + d * 1.15, center.y, center.z);
+        } else if (currentView !== 'rotate360') {
+          camera.position.set(center.x + d * 0.65, center.y + d * 0.45, center.z + d * 0.85);
+        }
+        controls.update();
+      } else {
+        const offset = camera.position.clone().sub(controls.target);
+        controls.target.copy(targetCenterRef.current);
+        camera.position.copy(controls.target).add(offset);
+        controls.update();
       }
-      controls.update();
     }
   }, [simType, params?.crank_length, params?.conn_length, params?.link_ground, params?.link_crank, params?.link_coupler, params?.link_rocker, params?.coupler_offset_u, params?.coupler_offset_v, params?.coupler_tracer_offset]);
 
@@ -2734,7 +2745,7 @@ export const Scene3D = ({
 
         if (playing) {
           if (arcInfo.isFullRotation) {
-            th2 = ((crankThetaRef.current % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            th2 = crankThetaRef.current;
           } else if (!arcInfo.impossible) {
             const span = (arcInfo.maxAngle - arcInfo.minAngle) / 2;
             const center = (arcInfo.maxAngle + arcInfo.minAngle) / 2;
@@ -2743,12 +2754,14 @@ export const Scene3D = ({
             th2 = 0;
           }
         } else {
+          lastTh4Ref.current = null;
           if (liveData?.time && liveData?.crank_angle_deg && liveData.crank_angle_deg[curIdx] !== undefined) {
             th2 = THREE.MathUtils.degToRad(liveData.crank_angle_deg[curIdx]);
           } else {
             const total = liveData?.time?.length || 120;
             th2 = (curIdx / total) * 2 * Math.PI;
           }
+          crankThetaRef.current = th2;
         }
 
         const pose = solveFourBarContinuous(d_real, a_real, b_real, c_real, th2, lastTh4Ref.current);
@@ -2795,21 +2808,22 @@ export const Scene3D = ({
           parts.angleHUD.sprite.position.set(0, a_vis * 1.12 + 0.24, 0.12);
         }
 
-        // Curved Sweep Arc from 0 to th2 on radius a_vis * 0.72
+        // Curved Sweep Arc from 0 to th2 on radius rArc
         if (parts.sweepArcLine && parts.sweepArcPositions) {
-          const rArc = a_vis * 0.72;
+          const rArc = Math.max(0.12, Math.min(a_vis * 0.72, 0.40));
+          const sweepTheta = ((th2 % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
           const pos = parts.sweepArcPositions;
           for (let k = 0; k <= 32; k++) {
-            const a = (k / 32) * th2;
+            const a = (k / 32) * sweepTheta;
             pos[k * 3] = rArc * Math.cos(a);
             pos[k * 3 + 1] = rArc * Math.sin(a);
             pos[k * 3 + 2] = 0.045;
           }
           parts.sweepArcLine.geometry.attributes.position.needsUpdate = true;
           if (parts.sweepArrow) {
-            parts.sweepArrow.visible = Math.abs(th2) > 0.05;
-            parts.sweepArrow.position.set(rArc * Math.cos(th2), rArc * Math.sin(th2), 0.045);
-            parts.sweepArrow.rotation.z = th2 + Math.PI / 2;
+            parts.sweepArrow.visible = Math.abs(sweepTheta) > 0.05;
+            parts.sweepArrow.position.set(rArc * Math.cos(sweepTheta), rArc * Math.sin(sweepTheta), 0.045);
+            parts.sweepArrow.rotation.z = sweepTheta + Math.PI / 2;
           }
         }
 

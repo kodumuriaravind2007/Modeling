@@ -159,49 +159,63 @@ const MathModel = ({ simType, params }) => {
               </div>
               {showAnalogy && (
                 <>
-                  <table className="analogy-table">
-                    <thead>
-                      <tr>
-                        <th>Mechanical Domain</th>
-                        <th>Electrical Domain</th>
-                        <th>Mech. Unit</th>
-                        <th>Elec. Unit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ANALOGY_TABLE.map((row, i) => (
-                        <tr key={i}>
-                          <td>{row.mechanical}</td>
-                          <td>{row.electrical}</td>
-                          <td className="unit-cell">{row.unit_mech}</td>
-                          <td className="unit-cell">{row.unit_elec}</td>
+                  <div className="analogy-table-wrapper">
+                    <table className="analogy-table">
+                      <thead>
+                        <tr>
+                          <th>Mechanical Domain</th>
+                          <th>Electrical Domain</th>
+                          <th>Mech. Unit</th>
+                          <th>Elec. Unit</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {ANALOGY_TABLE.map((row, i) => (
+                          <tr key={i}>
+                            <td><strong>{row.mechanical}</strong></td>
+                            <td><span className="elec-domain-text">{row.electrical}</span></td>
+                            <td><code className="unit-badge mech">{row.unit_mech}</code></td>
+                            <td><code className="unit-badge elec">{row.unit_elec}</code></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Computed component values */}
                   <div className="circuit-values-card">
-                    <h4 className="circuit-values-title">Your Circuit Component Values</h4>
+                    <div className="circuit-values-header">
+                      <span className="circuit-values-badge">Circuit Analogue</span>
+                      <h4 className="circuit-values-title">Equivalent RLC Circuit Values</h4>
+                    </div>
                     <div className="circuit-values-grid">
-                      <div className="circuit-value-item">
-                        <span className="circuit-value-symbol" style={{color:'#6366f1'}}>L_e</span>
-                        <span className="circuit-value-num">{analogy.L_e?.toFixed(4)} H</span>
-                        <span className="circuit-value-meaning">
-                          {simType === 'simple_pendulum' ? '= mL²' : '= I_pivot = mL²/3'}
-                        </span>
+                      <div className="circuit-value-item inductance">
+                        <div className="circuit-value-header">
+                          <span className="circuit-value-symbol">Lₑ</span>
+                          <span className="circuit-value-type">Inductance (Inertia)</span>
+                        </div>
+                        <div className="circuit-value-num">{analogy.L_e?.toFixed(4)} <span className="circuit-unit">H</span></div>
+                        <div className="circuit-value-meaning">
+                          {simType === 'simple_pendulum' ? '= m · L²' : '= I_pivot = m · L² / 3'}
+                        </div>
                       </div>
-                      <div className="circuit-value-item">
-                        <span className="circuit-value-symbol" style={{color:'#f59e0b'}}>R</span>
-                        <span className="circuit-value-num">{analogy.R?.toFixed(4)} Ω</span>
-                        <span className="circuit-value-meaning">= b (damping)</span>
+                      <div className="circuit-value-item resistance">
+                        <div className="circuit-value-header">
+                          <span className="circuit-value-symbol">R</span>
+                          <span className="circuit-value-type">Resistance (Damping)</span>
+                        </div>
+                        <div className="circuit-value-num">{analogy.R?.toFixed(4)} <span className="circuit-unit">Ω</span></div>
+                        <div className="circuit-value-meaning">= b (viscous damping)</div>
                       </div>
-                      <div className="circuit-value-item">
-                        <span className="circuit-value-symbol" style={{color:'#06b6d4'}}>C</span>
-                        <span className="circuit-value-num">{analogy.C?.toFixed(4)} F</span>
-                        <span className="circuit-value-meaning">
-                          {simType === 'simple_pendulum' ? '= 1/(mgL)' : '= 1/(mgd)'}
-                        </span>
+                      <div className="circuit-value-item capacitance">
+                        <div className="circuit-value-header">
+                          <span className="circuit-value-symbol">C</span>
+                          <span className="circuit-value-type">Capacitance (Compliance)</span>
+                        </div>
+                        <div className="circuit-value-num">{analogy.C?.toFixed(4)} <span className="circuit-unit">F</span></div>
+                        <div className="circuit-value-meaning">
+                          {simType === 'simple_pendulum' ? '= 1 / (m · g · L)' : '= 1 / (m · g · d)'}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -174,7 +174,14 @@ export default function App() {
 
   // Toggle or open a contextual panel
   const handleTogglePanel = useCallback((panelName) => {
-    setActivePanel(prev => prev === panelName ? null : panelName);
+    setActivePanel(prev => {
+      const next = prev === panelName ? null : panelName;
+      if (next && ['mechanism', 'analysis', 'learn', 'smd'].includes(next)) {
+        setIsPlaying(false);
+        playingRef.current = false;
+      }
+      return next;
+    });
   }, []);
 
   const handleClosePanel = useCallback(() => {

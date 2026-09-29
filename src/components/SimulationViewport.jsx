@@ -135,7 +135,12 @@ export const SimulationViewport = ({
   };
 
   return (
-    <main className="simulation-viewport" aria-label="Simulation Workspace" ref={containerRef}>
+    <main
+      className="simulation-viewport"
+      aria-label="Simulation Workspace"
+      ref={containerRef}
+      style={isModalOpen ? { pointerEvents: 'none', userSelect: 'none' } : undefined}
+    >
       <div className="canvas-container" style={{ display: viewMode === '2d' ? 'block' : 'none', position: 'relative' }}>
         <canvas
           ref={canvasRef}

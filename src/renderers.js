@@ -973,12 +973,27 @@ export function drawFourBar(ctx, w, h, idx, simData, params = {}) {
   const b_real = Number(params.link_coupler) || 2.5;
   const c_real = Number(params.link_rocker) || 3.0;
 
-  const originX = w * 0.28;
-  const originY = h * 0.65;
+  // Kinematic bounding box calculation across full theoretical reach
+  const xMinReal = Math.min(-a_real, d_real - c_real);
+  const xMaxReal = Math.max(a_real, d_real + c_real);
+  const yMinReal = -Math.max(a_real, c_real);
+  const yMaxReal = Math.max(a_real, c_real);
 
-  // DYNAMIC SCALING: based on ground link d and max linkage extent
-  const maxSpan = Math.max(d_real * 1.3, a_real + b_real);
-  const scale = Math.min(w * 0.50, h * 0.50) / Math.max(1, maxSpan);
+  const spanX = Math.max(xMaxReal - xMinReal, 0.5);
+  const spanY = Math.max(yMaxReal - yMinReal, 0.5);
+
+  const marginX = w * 0.12;
+  const marginY = h * 0.14;
+  const availW = w - 2 * marginX;
+  const availH = h - 2 * marginY;
+
+  const scale = Math.min(availW / spanX, availH / spanY);
+
+  const cxPhys = (xMinReal + xMaxReal) / 2;
+  const cyPhys = (yMinReal + yMaxReal) / 2;
+
+  const originX = w / 2 - cxPhys * scale;
+  const originY = h / 2 + cyPhys * scale;
 
   let bx_m = simData?.bx?.[idx];
   let by_m = simData?.by?.[idx];
