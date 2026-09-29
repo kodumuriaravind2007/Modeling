@@ -459,11 +459,11 @@ export default function App() {
 
   const initialMountedRef = useRef(false);
 
-  // Initial simulation on mount
+  // Initial simulation on mount (compute resting state at t=0 without auto-playing)
   useEffect(() => {
     if (!initialMountedRef.current) {
       initialMountedRef.current = true;
-      runSimulation('simple_pendulum', SIMULATIONS.simple_pendulum.defaults, true);
+      runSimulation('simple_pendulum', SIMULATIONS.simple_pendulum.defaults, false);
     }
   }, [runSimulation]);
 
@@ -486,20 +486,19 @@ export default function App() {
     setValidation(computeLiveValidation(type, newDefaults, clientData));
 
     const feas = checkFeasibility(type, newDefaults);
-    const canPlay = feas.status === FEASIBILITY_STATUS.OK;
     setDesignRes(null);
     setSensRes(null);
     setVerifyRes(null);
     setReverseResult(null);
     setAnimIdx(0);
     frameRef.current = 0;
-    setIsPlaying(canPlay);
-    playingRef.current = canPlay;
+    setIsPlaying(false);
+    playingRef.current = false;
     if (animRef.current) cancelAnimationFrame(animRef.current);
     setDesignConstraints({});
 
     drawCanvas(0, newDefaults, clientData);
-    runSimulation(type, newDefaults, canPlay);
+    runSimulation(type, newDefaults, false);
   }, [drawCanvas, runSimulation]);
 
   // ─── Playback Controls ───
