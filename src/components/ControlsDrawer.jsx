@@ -135,6 +135,8 @@ export const ControlsDrawer = ({
         aria-label="Simulation Controls"
         onPointerDown={e => e.stopPropagation()}
         onMouseDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+        onWheel={e => e.stopPropagation()}
       >
         {/* Drawer Header */}
         <div className="drawer-header">
@@ -201,7 +203,14 @@ export const ControlsDrawer = ({
               {cfg.sliders.map((s) => {
                 const currentVal = localParams[s.key] ?? params[s.key] ?? s.min;
                 return (
-                  <div key={s.key} className="control-param-group">
+                  <div
+                    key={s.key}
+                    className="control-param-group"
+                    onPointerDown={e => e.stopPropagation()}
+                    onMouseDown={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
+                    onWheel={e => e.stopPropagation()}
+                  >
                     <div className="param-header-row">
                       <ParamTooltip paramKey={s.key}>
                         <span className="param-label-text">{s.label}</span>
@@ -234,6 +243,9 @@ export const ControlsDrawer = ({
                         max={s.max}
                         step={s.step}
                         value={currentVal}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                         onInput={(e) => handleSliderInput(s.key, e.target.value)}
                         onChange={(e) => handleSliderInput(s.key, e.target.value)}
                         onPointerUp={(e) => handleSliderCommit(s.key, e.target.value)}

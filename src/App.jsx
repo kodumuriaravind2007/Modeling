@@ -527,6 +527,8 @@ export default function App() {
 
   const stepAnim = useCallback((direction) => {
     if (!simData) return;
+    const feas = checkFeasibility(simTypeRef.current, paramsRef.current);
+    if (feas.status !== FEASIBILITY_STATUS.OK) return;
     const len = simData.time?.length || simData.crank_angle_deg?.length || 1;
     const nextIdx = (animIdx + direction + len) % len;
     setAnimIdx(nextIdx);
@@ -572,6 +574,13 @@ export default function App() {
   useEffect(() => {
     if (!isPlaying) return;
 
+    const initialFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
+    if (initialFeas.status !== FEASIBILITY_STATUS.OK) {
+      setIsPlaying(false);
+      playingRef.current = false;
+      return;
+    }
+
     const len = simData?.time?.length || simData?.crank_angle_deg?.length || 1;
     let localIdx = frameRef.current;
     let lastTimestamp = null;
@@ -582,6 +591,13 @@ export default function App() {
 
     const renderLoop = (timestamp) => {
       if (!playingRef.current) return;
+
+      const loopFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
+      if (loopFeas.status !== FEASIBILITY_STATUS.OK) {
+        setIsPlaying(false);
+        playingRef.current = false;
+        return;
+      }
 
       if (lastTimestamp === null) {
         lastTimestamp = timestamp;
@@ -826,6 +842,7 @@ export default function App() {
         onUpdateParams={handleUpdateParams}
         onBobDragMove={handleBobDragMove}
         onBobDragRelease={handleBobDragRelease}
+        isModalOpen={['analysis', 'mechanism', 'learn', 'smd'].includes(activePanel)}
       />
 
       {/* ── Bottom Playback Control Bar ── */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Line, Scatter } from 'react-chartjs-2';
 import { HelpCard } from '../HelpCards';
 import { FeasibilityPanel } from './FeasibilityPanel';
@@ -121,6 +121,7 @@ export const AnalysisModal = ({
 }) => {
   const [subTab, setSubTab] = useState('motion');
   const [localParams, setLocalParams] = useState(params);
+  const backdropMouseDownRef = useRef(false);
 
   useEffect(() => {
     setLocalParams(params);
@@ -153,8 +154,37 @@ export const AnalysisModal = ({
   const cfg = simulations[simType];
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="analysis-modal-title">
-      <div className="analysis-modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          backdropMouseDownRef.current = true;
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          backdropMouseDownRef.current = false;
+          onClose();
+        }
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="analysis-modal-title"
+    >
+      <div
+        className="analysis-modal-dialog"
+        onMouseDown={(e) => {
+          backdropMouseDownRef.current = false;
+          e.stopPropagation();
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="modal-header">
           <div className="modal-header-left">
@@ -582,7 +612,14 @@ export const AnalysisModal = ({
                           ? (Number.isInteger(currentVal) ? `${currentVal}.00` : currentVal.toFixed(2))
                           : currentVal;
                         return (
-                          <div key={s.key} className="validation-param-box">
+                          <div
+                            key={s.key}
+                            className="validation-param-box"
+                            onPointerDown={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
+                            onTouchStart={e => e.stopPropagation()}
+                            onWheel={e => e.stopPropagation()}
+                          >
                             <div className="validation-param-header">
                               <span className="validation-param-name">{s.label}</span>
                               <span className="validation-param-badge">
@@ -596,6 +633,9 @@ export const AnalysisModal = ({
                               max={s.max}
                               step={s.step}
                               value={currentVal}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onTouchStart={(e) => e.stopPropagation()}
                               onInput={(e) => handleSliderInput(s.key, e.target.value)}
                               onChange={(e) => handleSliderInput(s.key, e.target.value)}
                               onPointerUp={(e) => handleSliderCommit(s.key, e.target.value)}

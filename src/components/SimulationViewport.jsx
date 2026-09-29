@@ -18,7 +18,8 @@ export const SimulationViewport = ({
   _onUpdateParams,
   onBobDragMove,
   onBobDragRelease,
-  onPause
+  onPause,
+  isModalOpen = false
 }) => {
   const cfg = simulations[simType] || simulations.simple_pendulum;
 
@@ -188,6 +189,7 @@ export const SimulationViewport = ({
             onPause={onPause}
             onBobDragMove={onBobDragMove}
             onBobDragRelease={onBobDragRelease}
+            isModalOpen={isModalOpen}
           />
           {!simData && (
             <div className="viewport-unsimulated-banner">

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const MECHANISMS = [
   {
@@ -49,6 +49,8 @@ const MECHANISMS = [
 ];
 
 export const MechanismModal = ({ isOpen, activeSim, onSelect, onClose }) => {
+  const backdropMouseDownRef = useRef(false);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -62,8 +64,37 @@ export const MechanismModal = ({ isOpen, activeSim, onSelect, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="mech-modal-title">
-      <div className="mechanism-modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          backdropMouseDownRef.current = true;
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          backdropMouseDownRef.current = false;
+          onClose();
+        }
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mech-modal-title"
+    >
+      <div
+        className="mechanism-modal-dialog"
+        onMouseDown={(e) => {
+          backdropMouseDownRef.current = false;
+          e.stopPropagation();
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="modal-header">
           <div>

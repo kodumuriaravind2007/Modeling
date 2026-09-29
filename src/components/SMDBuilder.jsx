@@ -227,6 +227,7 @@ export const SMDBuilder = ({ onClose }) => {
   const [canvasMode, setCanvasMode] = useState('simulink');
   const [copiedMatlab, setCopiedMatlab] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
+  const backdropMouseDownRef = useRef(false);
 
   // Dynamic mass count synchronization for Simulink block diagram
   const massCount = nodes.filter(n => n.type === 'mass').length;
@@ -1113,8 +1114,36 @@ title('Frequency Response Bode Diagram G(j\\omega)');
   }, [frfData, system]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="smd-builder-dialog" onClick={e => e.stopPropagation()}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          backdropMouseDownRef.current = true;
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          backdropMouseDownRef.current = false;
+          onClose();
+        }
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="smd-builder-dialog"
+        onMouseDown={(e) => {
+          backdropMouseDownRef.current = false;
+          e.stopPropagation();
+        }}
+        onClick={e => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="smd-builder-header">
           <div className="smd-header-info">

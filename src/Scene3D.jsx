@@ -10,14 +10,14 @@ import { checkFeasibility, FEASIBILITY_STATUS } from './core/feasibility.js';
 function solveFourBarContinuous(d, a, b, c, theta2, prevTheta4 = null, openCircuit = true) {
   const sol = solveFourBarPosition(d, a, b, c, theta2, prevTheta4, openCircuit ? -1 : 1);
   return {
-    success: sol.success,
-    bx: sol.B.x,
-    by: sol.B.y,
-    cx: sol.C.x,
-    cy: sol.C.y,
-    theta3: sol.theta3,
-    theta4: sol.theta4,
-    transmissionAngleDeg: sol.transmissionAngleDeg
+    success: Boolean(sol && sol.success),
+    bx: (sol && sol.B) ? sol.B.x : 0,
+    by: (sol && sol.B) ? sol.B.y : 0,
+    cx: (sol && sol.C) ? sol.C.x : (d || 4.0),
+    cy: (sol && sol.C) ? sol.C.y : 0,
+    theta3: (sol && sol.theta3 !== undefined) ? sol.theta3 : 0,
+    theta4: (sol && sol.theta4 !== undefined) ? sol.theta4 : 0,
+    transmissionAngleDeg: (sol && sol.transmissionAngleDeg !== undefined) ? sol.transmissionAngleDeg : 0
   };
 }
 
@@ -1446,6 +1446,7 @@ export const Scene3D = ({
   onPause,
   onBobDragMove,
   onBobDragRelease,
+  isModalOpen = false,
 }) => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -1502,6 +1503,13 @@ export const Scene3D = ({
   const targetCenterRef = useRef(new THREE.Vector3(0, 0, 0));
   const viewDistRef = useRef(3.0);
   const updateTransformsRef = useRef(null);
+
+  // Disable OrbitControls whenever a modal is open to strictly prevent background movement
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enabled = !isModalOpen;
+    }
+  }, [isModalOpen]);
 
   // ── Setup Three.js Scene, Camera, Lights, Grid ────────────────────────
   useEffect(() => {
@@ -2514,6 +2522,7 @@ export const Scene3D = ({
     updateTransformsRef.current = () => {
       const parts = dynamicPartsRef.current;
       if (!parts) return;
+      const curIdx = animIdxRef.current || 0;
 
       const liveData = simDataRef.current;
       const liveParams = paramsRef.current;
@@ -2725,7 +2734,7 @@ export const Scene3D = ({
 
         if (playing) {
           if (arcInfo.isFullRotation) {
-            th2 = (continuousTimeRef.current * omega2) % (2 * Math.PI);
+            th2 = ((crankThetaRef.current % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
           } else if (!arcInfo.impossible) {
             const span = (arcInfo.maxAngle - arcInfo.minAngle) / 2;
             const center = (arcInfo.maxAngle + arcInfo.minAngle) / 2;
