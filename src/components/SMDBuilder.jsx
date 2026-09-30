@@ -947,8 +947,14 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
       const dt = 0.005;
       const stepIdx = Math.min(simData.time.length - 1, Math.floor(t / dt));
 
-      const w = canvas.width = canvas.parentElement ? canvas.parentElement.clientWidth : 800;
-      const h = canvas.height = canvas.parentElement ? canvas.parentElement.clientHeight : 500;
+      const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 800;
+      const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 500;
+      if (canvas.width !== parentW || canvas.height !== parentH) {
+        canvas.width = parentW;
+        canvas.height = parentH;
+      }
+      const w = canvas.width;
+      const h = canvas.height;
 
       ctx.clearRect(0, 0, w, h);
 

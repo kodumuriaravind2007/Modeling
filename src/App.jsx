@@ -595,11 +595,20 @@ export default function App() {
 
     const dt = simData?.params?.dt || params?.dt || (simType === 'slider_crank' ? 0.005 : simType === 'four_bar' ? 0.005 : 0.01);
 
+    let cachedFeasParams = null;
+    let cachedFeasType = null;
+    let cachedIsOk = true;
+
     const renderLoop = (timestamp) => {
       if (!playingRef.current) return;
 
-      const loopFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
-      if (loopFeas.status !== FEASIBILITY_STATUS.OK) {
+      if (cachedFeasParams !== paramsRef.current || cachedFeasType !== simTypeRef.current) {
+        cachedFeasParams = paramsRef.current;
+        cachedFeasType = simTypeRef.current;
+        const loopFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
+        cachedIsOk = (loopFeas.status === FEASIBILITY_STATUS.OK);
+      }
+      if (!cachedIsOk) {
         setIsPlaying(false);
         playingRef.current = false;
         return;

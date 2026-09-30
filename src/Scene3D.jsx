@@ -1482,6 +1482,7 @@ export const Scene3D = ({
   const crankThetaRef = useRef(0);
   const lastCurIdxRef = useRef(animIdx);
   const prevPlayingRef = useRef(isPlaying);
+  const feasCacheRef = useRef({ params: null, type: null, isCaseCorrect: true });
 
   const gizmoCanvasRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -2537,8 +2538,15 @@ export const Scene3D = ({
 
       const liveData = simDataRef.current;
       const liveParams = paramsRef.current;
-      const feas = checkFeasibility(parts.type, liveParams);
-      const isCaseCorrect = feas.status === FEASIBILITY_STATUS.OK;
+      if (feasCacheRef.current.params !== liveParams || feasCacheRef.current.type !== parts.type) {
+        const feas = checkFeasibility(parts.type, liveParams);
+        feasCacheRef.current = {
+          params: liveParams,
+          type: parts.type,
+          isCaseCorrect: feas.status === FEASIBILITY_STATUS.OK
+        };
+      }
+      const isCaseCorrect = feasCacheRef.current.isCaseCorrect;
       const playing = isPlayingRef.current && isCaseCorrect;
 
       // Clear motion trail on manual seek/scrub while paused

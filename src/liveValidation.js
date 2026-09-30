@@ -8,6 +8,7 @@ import {
   exactCompoundPendulumPeriod,
   measureNumericalPeriod,
   classifyGrashof,
+  computeReachableInputArc,
   solveFourBarPosition,
   solveSliderCrank
 } from './core/kinematics.js';
@@ -257,26 +258,31 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
 
     const gInfo = classifyGrashof(d, a, b, c);
 
-    // Exact rocker range and min/max transmission angle by full cycle sweep using Law of Cosines
+    // Exact rocker range and min/max transmission angle by reachable arc sweep using Law of Cosines
+    const arcInfo = computeReachableInputArc(d, a, b, c);
     let minTh4 = Infinity, maxTh4 = -Infinity, prevTh4 = null;
     let minMu = Infinity, maxMu = -Infinity;
-    let solvable = true;
+    let solvable = !arcInfo.impossible;
 
-    for (let deg = 0; deg <= 360; deg += 0.5) {
-      const th2 = (deg * Math.PI) / 180;
-      const sol = solveFourBarPosition(d, a, b, c, th2, prevTh4);
-      if (!sol.success) {
-        solvable = false;
-        break;
+    if (solvable) {
+      const startAngle = arcInfo.isFullRotation ? 0 : arcInfo.minAngle;
+      const endAngle = arcInfo.isFullRotation ? 2 * Math.PI : arcInfo.maxAngle;
+      const steps = 360;
+      for (let s = 0; s <= steps; s++) {
+        const th2 = startAngle + (s / steps) * (endAngle - startAngle);
+        const sol = solveFourBarPosition(d, a, b, c, th2, prevTh4);
+        if (sol.success) {
+          if (sol.theta4 < minTh4) minTh4 = sol.theta4;
+          if (sol.theta4 > maxTh4) maxTh4 = sol.theta4;
+          if (sol.transmissionAngleDeg < minMu) minMu = sol.transmissionAngleDeg;
+          if (sol.transmissionAngleDeg > maxMu) maxMu = sol.transmissionAngleDeg;
+          prevTh4 = sol.theta4;
+        }
       }
-      if (sol.theta4 < minTh4) minTh4 = sol.theta4;
-      if (sol.theta4 > maxTh4) maxTh4 = sol.theta4;
-      if (sol.transmissionAngleDeg < minMu) minMu = sol.transmissionAngleDeg;
-      if (sol.transmissionAngleDeg > maxMu) maxMu = sol.transmissionAngleDeg;
-      prevTh4 = sol.theta4;
+      if (minTh4 === Infinity) solvable = false;
     }
 
-    const rockerRangeDeg = solvable ? ((maxTh4 - minTh4) * 180) / Math.PI : null;
+    const rockerRangeDeg = (solvable && minTh4 !== Infinity) ? ((maxTh4 - minTh4) * 180) / Math.PI : null;
     const nuRange = simData?.rocker_range_deg !== undefined ? simData.rocker_range_deg : null;
     const maxLoopErr = simData?.max_loop_error !== undefined ? simData.max_loop_error : 0.0;
 
