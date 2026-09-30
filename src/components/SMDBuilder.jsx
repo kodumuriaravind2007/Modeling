@@ -160,6 +160,34 @@ const PRESETS = {
       { id: 'k_susp', type: 'spring', from: 'm_wheel', to: 'm_body', k: 28000.0, yOffset: -25, label: 'k_s = 28 kN/m' },
       { id: 'c_susp', type: 'damper', from: 'm_wheel', to: 'm_body', c: 2500.0, yOffset: 25, label: 'c_s = 2.5 kN·s/m' }
     ]
+  },
+  pendulum_analogue: {
+    name: 'Simple-Pendulum Analogue (k_eq = mg/L)',
+    shortLabel: 'Pendulum',
+    badge: 'Rotational Analogue',
+    description: 'Equivalent 1-DOF spring-mass system for linearized simple pendulum: m = 1.0 kg, k_eq = mg/L = 9.81 N/m, c = 0.10 N·s/m',
+    nodes: [
+      { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Pivot Datum' },
+      { id: 'm1', type: 'mass', x: 440, y: 220, mass: 1.0, x0: 0.20, v0: 0.0, label: 'Bob m₁ (1.0 kg)' }
+    ],
+    edges: [
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 9.81, yOffset: -25, label: 'k_eq = mg/L = 9.81 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.10, yOffset: 25, label: 'c₁ = b = 0.10 N·s/m' }
+    ]
+  },
+  compound_pendulum_analogue: {
+    name: 'Compound-Pendulum Analogue (Rigid Rod)',
+    shortLabel: 'Compound-Pendulum',
+    badge: 'Rotational Analogue',
+    description: 'Equivalent 1-DOF oscillator for uniform rigid rod: m = 2.0 kg, k_eq = 1.5·mg/L = 29.43 N/m, c = 0.15 N·s/m',
+    nodes: [
+      { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Pivot Datum' },
+      { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.20, v0: 0.0, label: 'Rod m₁ (2.0 kg)' }
+    ],
+    edges: [
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 29.43, yOffset: -25, label: 'k_eq = 1.5·mg/L = 29.43 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.15, yOffset: 25, label: 'c₁ = b = 0.15 N·s/m' }
+    ]
   }
 };
 
@@ -1419,8 +1447,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 type="button"
                 className={`smd-preset-btn ${activePreset === key ? 'active' : ''}`}
                 onClick={() => loadPreset(key)}
+                title={p.name}
               >
-                {p.name.split(' ')[0]}
+                {p.shortLabel || p.name.split(' ')[0]}
               </button>
             ))}
           </div>

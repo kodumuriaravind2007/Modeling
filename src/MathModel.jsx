@@ -10,14 +10,35 @@ import { EquationBlock, EquationCard, ParamSubstitution } from './components/Equ
 import { FBDiagram } from './components/FBDiagram';
 import { CircuitDiagram } from './components/CircuitDiagram';
 import { MATH_MODELS, computeAnalogy, getSubstitutedEqn, getStateSpaceMatrix, ANALOGY_TABLE } from './mathModels';
+import { MATLAB_PRESETS, generateMatlabCode } from './matlabGenerators';
 
 const MathModel = ({ simType, params }) => {
   const [showAnalogy, setShowAnalogy] = useState(true);
+  const [selectedMatlabPreset, setSelectedMatlabPreset] = useState(null);
+  const [copiedMatlab, setCopiedMatlab] = useState(false);
 
   const model = MATH_MODELS[simType];
   const analogy = useMemo(() => computeAnalogy(simType, params), [simType, params]);
   const substituted = useMemo(() => getSubstitutedEqn(simType, params), [simType, params]);
   const stateMatrix = useMemo(() => getStateSpaceMatrix(simType, params), [simType, params]);
+
+  // Compute live or preset-specific parameters for MATLAB generation
+  const activeMatlabParams = useMemo(() => {
+    if (!selectedMatlabPreset) return params;
+    const p = (MATLAB_PRESETS[simType] || []).find(x => x.id === selectedMatlabPreset);
+    return p ? { ...params, ...p.params } : params;
+  }, [selectedMatlabPreset, params, simType]);
+
+  const matlabScript = useMemo(() => {
+    return generateMatlabCode(simType, activeMatlabParams);
+  }, [simType, activeMatlabParams]);
+
+  const handleCopyMatlab = () => {
+    navigator.clipboard.writeText(matlabScript).then(() => {
+      setCopiedMatlab(true);
+      setTimeout(() => setCopiedMatlab(false), 2400);
+    });
+  };
 
   const isPendulum = simType === 'simple_pendulum' || simType === 'compound_pendulum';
 
@@ -280,6 +301,47 @@ const MathModel = ({ simType, params }) => {
             </div>
           </EquationCard>
         </div>
+      </div>
+
+      {/* Ready-to-Run MATLAB / GNU Octave Runnable Script Card */}
+      <div style={{ marginTop: '16px' }}>
+        <EquationCard title="MATLAB / GNU Octave Runnable Script (.m)" icon="💻">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--kx-text-muted, #94A3B8)' }}>Presets:</span>
+              <button
+                type="button"
+                className={`smd-preset-btn ${!selectedMatlabPreset ? 'active' : ''}`}
+                onClick={() => setSelectedMatlabPreset(null)}
+                title="Use currently configured parameter values"
+              >
+                ⚡ Live Config
+              </button>
+              {(MATLAB_PRESETS[simType] || []).map(preset => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`smd-preset-btn ${selectedMatlabPreset === preset.id ? 'active' : ''}`}
+                  onClick={() => setSelectedMatlabPreset(preset.id)}
+                  title={`Load ${preset.label} preset`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn-copy-solution"
+              onClick={handleCopyMatlab}
+              title="Copy ready-to-run MATLAB / Octave .m script to clipboard"
+            >
+              {copiedMatlab ? '✓ MATLAB Script Copied!' : '📋 Copy MATLAB Script (.m)'}
+            </button>
+          </div>
+          <pre className="smd-code-box" style={{ maxHeight: '340px', overflowY: 'auto' }}>
+            {matlabScript}
+          </pre>
+        </EquationCard>
       </div>
     </div>
   );
