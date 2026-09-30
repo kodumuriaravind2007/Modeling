@@ -299,7 +299,7 @@ export default function App() {
     setValidation(liveVal);
 
     const feas = checkFeasibility(sType, sParams);
-    const canPlay = startPlayback && (feas.status === FEASIBILITY_STATUS.OK);
+    const canPlay = startPlayback && (feas.status !== FEASIBILITY_STATUS.IMPOSSIBLE);
 
     if (startPlayback) {
       setAnimIdx(0);
@@ -360,8 +360,8 @@ export default function App() {
     const currentType = simTypeRef.current;
     const feas = checkFeasibility(currentType, next);
 
-    // If initial angle (theta0) or velocity (omega0) or feasibility warning, pause animation & preview at t=0
-    if (isAngleOrIC || feas.status !== FEASIBILITY_STATUS.OK) {
+    // If initial angle (theta0) or velocity (omega0) or geometric impossibility, pause animation & preview at t=0
+    if (isAngleOrIC || feas.status === FEASIBILITY_STATUS.IMPOSSIBLE) {
       if (playingRef.current) {
         setIsPlaying(false);
         playingRef.current = false;
@@ -413,8 +413,8 @@ export default function App() {
       setAnimIdx(0);
     }
 
-    // ── Kinematic feasibility check — pause animation if parameters are constrained or invalid ──
-    if (feas.status !== FEASIBILITY_STATUS.OK) {
+    // ── Kinematic feasibility check — pause animation if parameters are geometrically impossible ──
+    if (feas.status === FEASIBILITY_STATUS.IMPOSSIBLE) {
       setIsPlaying(false);
       playingRef.current = false;
       if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -492,7 +492,6 @@ export default function App() {
     setSimData(clientData);
     setValidation(computeLiveValidation(type, newDefaults, clientData));
 
-    const feas = checkFeasibility(type, newDefaults);
     setDesignRes(null);
     setSensRes(null);
     setVerifyRes(null);
@@ -516,11 +515,10 @@ export default function App() {
     }
     if (!isPlaying) {
       const feas = checkFeasibility(simTypeRef.current, paramsRef.current);
-      if (feas.status !== FEASIBILITY_STATUS.OK) {
-        const isConstrained = feas.status === FEASIBILITY_STATUS.WARNING;
+      if (feas.status === FEASIBILITY_STATUS.IMPOSSIBLE) {
         showToast(
-          `Cannot play: Mechanism is ${isConstrained ? 'Functionally Constrained' : 'Infeasible'}. ${feas.summary || 'Adjust parameters to satisfy kinematic constraints.'}`,
-          isConstrained ? 'warning' : 'error'
+          `Cannot play: Mechanism is Infeasible. ${feas.summary || 'Adjust parameters to satisfy kinematic constraints.'}`,
+          'error'
         );
         return;
       }
@@ -534,7 +532,7 @@ export default function App() {
   const stepAnim = useCallback((direction) => {
     if (!simData) return;
     const feas = checkFeasibility(simTypeRef.current, paramsRef.current);
-    if (feas.status !== FEASIBILITY_STATUS.OK) return;
+    if (feas.status === FEASIBILITY_STATUS.IMPOSSIBLE) return;
     const len = simData.time?.length || simData.crank_angle_deg?.length || 1;
     const nextIdx = (animIdx + direction + len) % len;
     setAnimIdx(nextIdx);
@@ -581,7 +579,7 @@ export default function App() {
     if (!isPlaying) return;
 
     const initialFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
-    if (initialFeas.status !== FEASIBILITY_STATUS.OK) {
+    if (initialFeas.status === FEASIBILITY_STATUS.IMPOSSIBLE) {
       setIsPlaying(false);
       playingRef.current = false;
       return;
@@ -606,7 +604,7 @@ export default function App() {
         cachedFeasParams = paramsRef.current;
         cachedFeasType = simTypeRef.current;
         const loopFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
-        cachedIsOk = (loopFeas.status === FEASIBILITY_STATUS.OK);
+        cachedIsOk = (loopFeas.status !== FEASIBILITY_STATUS.IMPOSSIBLE);
       }
       if (!cachedIsOk) {
         setIsPlaying(false);

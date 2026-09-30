@@ -12,7 +12,7 @@ export const SimulinkScopeModal = ({
   edges = [],
   classroomSolution = {},
   modalData = null,
-  system = null,
+  system: _system = null,
   isPlaying = true,
   onTogglePlay,
   onReset,
@@ -101,12 +101,12 @@ export const SimulinkScopeModal = ({
   const hoverX1 = hoverStepIdx !== null ? (x1Trace[hoverStepIdx] || 0) : null;
   const hoverX2 = (hoverStepIdx !== null && is2DOF) ? (x2Trace[hoverStepIdx] || 0) : null;
   const hoverV1 = hoverStepIdx !== null ? (v1Trace[hoverStepIdx] || 0) : null;
-  const hoverV2 = (hoverStepIdx !== null && is2DOF) ? (v2Trace[hoverStepIdx] || 0) : null;
-  let hoverF = null;
+  const _hoverV2 = (hoverStepIdx !== null && is2DOF) ? (v2Trace[hoverStepIdx] || 0) : null;
+  let _hoverF = null;
   if (hoverTime !== null && forceEdge) {
-    if (waveform === 'sine') hoverF = F0 * Math.sin(freq * hoverTime);
-    else if (waveform === 'step') hoverF = F0;
-    else if (waveform === 'impulse') hoverF = hoverTime < 0.1 ? F0 * 10 : 0;
+    if (waveform === 'sine') _hoverF = F0 * Math.sin(freq * hoverTime);
+    else if (waveform === 'step') _hoverF = F0;
+    else if (waveform === 'impulse') _hoverF = hoverTime < 0.1 ? F0 * 10 : 0;
   }
 
   // ── Render High-Resolution Oscilloscope Screen ────────────────────────────
@@ -794,6 +794,16 @@ export const SimulinkScopeModal = ({
                   {classroomSolution?.regimeName || 'Underdamped'}
                 </div>
               </div>
+
+              {forceEdge && (
+                <div style={{ background: '#0F172A', padding: '6px 10px', borderRadius: '6px', border: '1px solid #1E293B' }}>
+                  <div style={{ fontSize: '9.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Applied Force F(t)</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#F59E0B', fontFamily: 'monospace', marginTop: '2px' }}>
+                    {curF.toFixed(2)} N
+                  </div>
+                  <div style={{ fontSize: '9px', color: '#94A3B8' }}>{waveform.toUpperCase()} ({freq.toFixed(1)} rad/s)</div>
+                </div>
+              )}
             </>
           )}
         </div>

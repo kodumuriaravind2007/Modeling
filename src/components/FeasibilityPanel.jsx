@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { checkFeasibility, FEASIBILITY_STATUS } from '../core/feasibility.js';
 
-export const FeasibilityPanel = React.memo(({ simType, params }) => {
+export const FeasibilityPanel = React.memo(({ simType, params, compact = false }) => {
   const report = useMemo(() => {
     return checkFeasibility(simType, params);
   }, [simType, params]);
 
   const { status, score, title, summary, checks = [], metrics = {} } = report;
 
-  // Track expanded check cards by check id or index
+  // Track expanded check cards by check id or index (collapsed by default to prevent layout jump)
   const [expandedChecks, setExpandedChecks] = useState({});
+  const [showDrawerDetails, setShowDrawerDetails] = useState(false);
 
   const toggleCheck = (id) => {
     setExpandedChecks(prev => ({
@@ -29,6 +30,124 @@ export const FeasibilityPanel = React.memo(({ simType, params }) => {
     : status === FEASIBILITY_STATUS.WARNING
     ? '⚠️ Functionally Constrained'
     : '⛔ Infeasible Configuration';
+
+  // Compact drawer mode (used in ControlsDrawer to prevent layout shifts while dragging sliders)
+  if (compact) {
+    return (
+      <div className={`feasibility-panel compact ${statusClass}`} role="region" aria-label="Mechanism Feasibility Analysis">
+        <div className="feasibility-compact-header">
+          <div className="feasibility-title-row" style={{ marginBottom: 4 }}>
+            <span className={`feasibility-badge ${statusClass}`}>
+              {statusLabel}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="feasibility-score" title="Design Feasibility Score">
+                Index: <strong>{score}</strong>/100
+              </span>
+              {checks.length > 0 && (
+                <button
+                  type="button"
+                  className="feasibility-details-toggle-btn"
+                  onClick={() => setShowDrawerDetails(prev => !prev)}
+                  title="Toggle detailed diagnostic advice and recommended fixes"
+                  aria-expanded={showDrawerDetails}
+                >
+                  {showDrawerDetails ? '▲ Hide Fixes' : '▼ Details & Fixes'}
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="feasibility-summary" style={{ fontSize: '11.5px', margin: '2px 0 0 0' }}>
+            {summary}
+          </p>
+        </div>
+
+        {/* Dynamic Key Metric Badges */}
+        {Object.keys(metrics).length > 0 && (
+          <div className="feasibility-metrics-strip" style={{ marginTop: '6px', paddingTop: '6px' }}>
+            {Object.entries(metrics).map(([key, val]) => (
+              <div key={key} className="feasibility-metric-item">
+                <span className="feasibility-metric-key">{key.replace(/_/g, ' ')}</span>
+                <span className="feasibility-metric-val">{String(val)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Collapsible Actionable Engineering Diagnostic Checks (only when explicitly requested) */}
+        {showDrawerDetails && checks.length > 0 && (
+          <div className="feasibility-violations-list" style={{ marginTop: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+            {checks.map((c, i) => {
+              const checkKey = c.id || `check-${i}`;
+              const isExpanded = expandedChecks[checkKey] ?? true;
+              const icon = c.severity === 'error' ? '❌' : c.severity === 'warning' ? '⚠️' : 'ℹ️';
+
+              return (
+                <div
+                  key={checkKey}
+                  className={`feasibility-violation-card ${c.severity}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => toggleCheck(checkKey)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleCheck(checkKey); }}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="violation-msg-row" style={{ justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <span className="violation-icon">{icon}</span>
+                      <div>
+                        <span className="violation-text" style={{ fontWeight: 700 }}>{c.title}: </span>
+                        <span style={{ fontWeight: 500 }}>{c.what}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '8px', flexShrink: 0 }}>
+                      {isExpanded ? '▲ Less' : '▼ More'}
+                    </span>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{
+                      marginTop: '8px',
+                      paddingTop: '8px',
+                      borderTop: '1px dashed rgba(0, 0, 0, 0.08)',
+                      fontSize: '11px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}>
+                      {c.why && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <strong style={{ color: '#475569', minWidth: '80px', flexShrink: 0 }}>Physical Law:</strong>
+                          <span style={{ color: '#1E293B' }}>{c.why}</span>
+                        </div>
+                      )}
+                      {c.consequence && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <strong style={{ color: '#475569', minWidth: '80px', flexShrink: 0 }}>Consequence:</strong>
+                          <span style={{ color: '#B91C1C' }}>{c.consequence}</span>
+                        </div>
+                      )}
+                      {c.fix && c.fix.length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <strong style={{ color: '#2563EB', minWidth: '80px', flexShrink: 0 }}>Recommended Fix:</strong>
+                          <ul style={{ margin: 0, paddingLeft: '14px', color: '#1E293B' }}>
+                            {c.fix.map((f, fi) => (
+                              <li key={fi}>{f}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`feasibility-panel ${statusClass}`} role="region" aria-label="Mechanism Feasibility Analysis">
@@ -57,12 +176,12 @@ export const FeasibilityPanel = React.memo(({ simType, params }) => {
         </div>
       )}
 
-      {/* Actionable Engineering Diagnostic Checks */}
+      {/* Actionable Engineering Diagnostic Checks (collapsed by default to prevent layout jump) */}
       {checks.length > 0 && (
         <div className="feasibility-violations-list">
           {checks.map((c, i) => {
             const checkKey = c.id || `check-${i}`;
-            const isExpanded = expandedChecks[checkKey] ?? (c.severity === 'error' || c.severity === 'warning');
+            const isExpanded = Boolean(expandedChecks[checkKey]);
             const icon = c.severity === 'error' ? '❌' : c.severity === 'warning' ? '⚠️' : 'ℹ️';
 
             return (
@@ -89,7 +208,6 @@ export const FeasibilityPanel = React.memo(({ simType, params }) => {
                   </span>
                 </div>
 
-                {/* Collapsible details: Why, Consequence, Fix */}
                 {isExpanded && (
                   <div style={{
                     marginTop: '8px',

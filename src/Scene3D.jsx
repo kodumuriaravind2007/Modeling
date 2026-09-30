@@ -1481,7 +1481,7 @@ export const Scene3D = ({
   const lastTh4Ref = useRef(null);
   const crankThetaRef = useRef(0);
   const lastCurIdxRef = useRef(animIdx);
-  const prevPlayingRef = useRef(isPlaying);
+  const _prevPlayingRef = useRef(isPlaying);
   const feasCacheRef = useRef({ params: null, type: null, isCaseCorrect: true });
 
   const gizmoCanvasRef = useRef(null);
@@ -1603,7 +1603,7 @@ export const Scene3D = ({
 
       // Advance continuous physical time and crank phase smoothly ONLY when playing and case is physically valid
       const currentFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
-      const isCaseCorrect = currentFeas.status === FEASIBILITY_STATUS.OK;
+      const isCaseCorrect = currentFeas.status !== FEASIBILITY_STATUS.IMPOSSIBLE;
 
       if (isPlayingRef.current && !isDraggingRef.current && isCaseCorrect) {
         const deltaAdvance = deltaSec * (animSpeedRef.current || 1.0);
@@ -1685,7 +1685,7 @@ export const Scene3D = ({
     if (!isPlaying) {
       continuousTimeRef.current = 0;
     }
-  }, [params?.theta0, params?.length, params?.mass]);
+  }, [params?.theta0, params?.length, params?.mass, isPlaying]);
 
   // ── Interactive 3D Pendulum Bob Dragging Raycaster Setup ────────────────────
   useEffect(() => {
@@ -2543,7 +2543,7 @@ export const Scene3D = ({
         feasCacheRef.current = {
           params: liveParams,
           type: parts.type,
-          isCaseCorrect: feas.status === FEASIBILITY_STATUS.OK
+          isCaseCorrect: feas.status !== FEASIBILITY_STATUS.IMPOSSIBLE
         };
       }
       const isCaseCorrect = feasCacheRef.current.isCaseCorrect;

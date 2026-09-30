@@ -21,8 +21,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 460, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 150.0, yOffset: -38, label: 'k₁ = 150 N/m' },
-      { id: 'k2', type: 'spring', from: 'wall1', to: 'm1', k: 250.0, yOffset: 38, label: 'k₂ = 250 N/m' },
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 150.0, yOffset: -18, label: 'k₁ = 150 N/m' },
+      { id: 'k2', type: 'spring', from: 'wall1', to: 'm1', k: 250.0, yOffset: 18, label: 'k₂ = 250 N/m' },
       { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 3.0, yOffset: 0, label: 'c₁ = 3.0 N·s/m' },
       { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 20.0, waveform: 'sine', freq: 5.0, label: 'F(t) = 20·sin(5t)' }
     ]
@@ -37,9 +37,9 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 500, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 200.0, label: 'k₁ = 200 N/m' },
-      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 200.0, label: 'k₂ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.5, yOffset: 45, label: 'c₁ = 1.5 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 200.0, yOffset: 0, label: 'k₁ = 200 N/m' },
+      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 200.0, yOffset: 0, label: 'k₂ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.5, yOffset: 18, label: 'c₁ = 1.5 N·s/m' }
     ]
   },
   series_parallel: {
@@ -52,10 +52,10 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 520, y: 220, mass: 3.0, x0: 0.12, v0: 0.0, label: 'm₁ (3.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 300.0, label: 'k₁ = 300 N/m' },
-      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: -35, label: 'k₂ = 150 N/m' },
-      { id: 'k3', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: 35, label: 'k₃ = 150 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: -55, label: 'c₁ = 2.0 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 300.0, yOffset: -18, label: 'k₁ = 300 N/m' },
+      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: -18, label: 'k₂ = 150 N/m' },
+      { id: 'k3', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: 0, label: 'k₃ = 150 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: 18, label: 'c₁ = 2.0 N·s/m' }
     ]
   },
   underdamped_sdof: {
@@ -67,8 +67,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 180.0, yOffset: -25, label: 'k₁ = 180 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.8, yOffset: 25, label: 'c₁ = 1.8 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 180.0, yOffset: -18, label: 'k₁ = 180 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.8, yOffset: 18, label: 'c₁ = 1.8 N·s/m' }
     ]
   },
   critically_damped: {
@@ -80,8 +80,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.20, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -25, label: 'k₁ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 40.0, yOffset: 25, label: 'c₁ = 40.0 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -18, label: 'k₁ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 40.0, yOffset: 18, label: 'c₁ = 40.0 N·s/m' }
     ]
   },
   overdamped: {
@@ -93,8 +93,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.20, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -25, label: 'k₁ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 75.0, yOffset: 25, label: 'c₁ = 75.0 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -18, label: 'k₁ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 75.0, yOffset: 18, label: 'c₁ = 75.0 N·s/m' }
     ]
   },
   tmd_system: {
@@ -107,10 +107,10 @@ const PRESETS = {
       { id: 'm2', type: 'mass', x: 530, y: 220, mass: 0.5, x0: 0.0, v0: 0.0, label: 'm₂ Absorber (0.5 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -22, label: 'k₁ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.8, yOffset: 22, label: 'c₁ = 0.8 N·s/m' },
-      { id: 'k2', type: 'spring', from: 'm1', to: 'm2', k: 20.0, yOffset: -22, label: 'k₂ = 20 N/m' },
-      { id: 'c2', type: 'damper', from: 'm1', to: 'm2', c: 2.2, yOffset: 22, label: 'c₂ = 2.2 N·s/m' },
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -18, label: 'k₁ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.8, yOffset: 18, label: 'c₁ = 0.8 N·s/m' },
+      { id: 'k2', type: 'spring', from: 'm1', to: 'm2', k: 20.0, yOffset: -18, label: 'k₂ = 20 N/m' },
+      { id: 'c2', type: 'damper', from: 'm1', to: 'm2', c: 2.2, yOffset: 18, label: 'c₂ = 2.2 N·s/m' },
       { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 10.0, waveform: 'sine', freq: 6.32, label: 'F_res = 10·sin(ωₙ₁t)' }
     ]
   },
@@ -123,8 +123,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.0, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -25, label: 'k₁ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: 25, label: 'c₁ = 2.0 N·s/m' },
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, yOffset: -18, label: 'k₁ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: 18, label: 'c₁ = 2.0 N·s/m' },
       { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 8.0, waveform: 'sine', freq: 10.0, label: 'F(t) = 8·sin(10t)' }
     ]
   },
@@ -142,8 +142,8 @@ const PRESETS = {
       { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 100.0, yOffset: 0, label: 'k₁ = 100 N/m' },
       { id: 'k12', type: 'spring', from: 'm1', to: 'm2', k: 15.0, yOffset: 0, label: 'k_c = 15 N/m' },
       { id: 'k2', type: 'spring', from: 'm2', to: 'wall2', k: 100.0, yOffset: 0, label: 'k₂ = 100 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.05, yOffset: 35, label: 'c₁ = 0.05 N·s/m' },
-      { id: 'c2', type: 'damper', from: 'm2', to: 'wall2', c: 0.05, yOffset: 35, label: 'c₂ = 0.05 N·s/m' }
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.05, yOffset: 18, label: 'c₁ = 0.05 N·s/m' },
+      { id: 'c2', type: 'damper', from: 'm2', to: 'wall2', c: 0.05, yOffset: 18, label: 'c₂ = 0.05 N·s/m' }
     ]
   },
   quarter_car: {
@@ -157,8 +157,8 @@ const PRESETS = {
     ],
     edges: [
       { id: 'k_tire', type: 'spring', from: 'road_wall', to: 'm_wheel', k: 190000.0, yOffset: 0, label: 'k_tire = 190 kN/m' },
-      { id: 'k_susp', type: 'spring', from: 'm_wheel', to: 'm_body', k: 28000.0, yOffset: -25, label: 'k_s = 28 kN/m' },
-      { id: 'c_susp', type: 'damper', from: 'm_wheel', to: 'm_body', c: 2500.0, yOffset: 25, label: 'c_s = 2.5 kN·s/m' }
+      { id: 'k_susp', type: 'spring', from: 'm_wheel', to: 'm_body', k: 28000.0, yOffset: -18, label: 'k_s = 28 kN/m' },
+      { id: 'c_susp', type: 'damper', from: 'm_wheel', to: 'm_body', c: 2500.0, yOffset: 18, label: 'c_s = 2.5 kN·s/m' }
     ]
   },
   pendulum_analogue: {
@@ -171,8 +171,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 1.0, x0: 0.20, v0: 0.0, label: 'Bob m₁ (1.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 9.81, yOffset: -25, label: 'k_eq = mg/L = 9.81 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.10, yOffset: 25, label: 'c₁ = b = 0.10 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 9.81, yOffset: -18, label: 'k_eq = mg/L = 9.81 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.10, yOffset: 18, label: 'c₁ = b = 0.10 N·s/m' }
     ]
   },
   compound_pendulum_analogue: {
@@ -185,8 +185,8 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.0, x0: 0.20, v0: 0.0, label: 'Rod m₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 29.43, yOffset: -25, label: 'k_eq = 1.5·mg/L = 29.43 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.15, yOffset: 25, label: 'c₁ = b = 0.15 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 29.43, yOffset: -18, label: 'k_eq = 1.5·mg/L = 29.43 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 0.15, yOffset: 18, label: 'c₁ = b = 0.15 N·s/m' }
     ]
   }
 };
@@ -273,13 +273,23 @@ export const SMDBuilder = ({ onClose }) => {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const simTimeRef = useRef(0);
+  const tabDeckRef = useRef(null);
+
+  const handleTabSwitch = (tabKey) => {
+    setActiveTab(tabKey);
+    setTimeout(() => {
+      if (tabDeckRef.current) {
+        tabDeckRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  };
   const lastStateTimeRef = useRef(0);
   const currentPosMapRef = useRef(new Map());
   const mousePosRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
 
   // Dragging state on Canvas
-  const [draggingNodeId, setDraggingNodeId] = useState(null);
+  const [_draggingNodeId, setDraggingNodeId] = useState(null);
   const draggingNodeIdRef = useRef(null);
   const draggingBlockIdRef = useRef(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -765,10 +775,10 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         );
         let yOffset = 0;
         if (parallelEdges.length === 1) {
-          yOffset = 30;
-          setEdges(prev => prev.map(e => e.id === parallelEdges[0].id ? { ...e, yOffset: -30 } : e));
+          yOffset = 18;
+          setEdges(prev => prev.map(e => e.id === parallelEdges[0].id ? { ...e, yOffset: -18 } : e));
         } else if (parallelEdges.length >= 2) {
-          yOffset = parallelEdges.length % 2 === 0 ? 45 : -45;
+          yOffset = parallelEdges.length % 2 === 0 ? 18 : -18;
         }
 
         let newEdge;
@@ -823,7 +833,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
     if (canvasMode === 'simulink') {
       // Check hit on Simulink blocks
-      for (const [key, b] of Object.entries(simulinkBlocks)) {
+      for (const [, b] of Object.entries(simulinkBlocks)) {
         let isHit = false;
         if (b.r) {
           isHit = Math.hypot(mx - b.x, my - b.y) <= b.r;
@@ -1104,18 +1114,22 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         const isWall1Right = isWall1 && n1.wallSide === 'right';
         const isWall2Right = isWall2 && n2.wallSide === 'right';
 
-        const offset = edge.yOffset || 0;
+        const offset = Math.max(-20, Math.min(20, edge.yOffset || 0));
+        const isJunc1 = n1?.id?.startsWith('junc') || Number(n1?.mass) <= 0.1;
+        const isJunc2 = n2?.id?.startsWith('junc') || Number(n2?.mass) <= 0.1;
+        const mw1 = isJunc1 ? 42 : 84;
+        const mw2 = isJunc2 ? 42 : 84;
 
         let startX, endX;
         if (isWall1) {
           startX = p1.x + (isWall1Right ? -16 : 16);
         } else {
-          startX = p1.x + (p1.x <= p2.x ? 42 : -42);
+          startX = p1.x + (p1.x <= p2.x ? mw1 / 2 : -mw1 / 2);
         }
         if (isWall2) {
           endX = p2.x + (isWall2Right ? -16 : 16);
         } else {
-          endX = p2.x + (p1.x <= p2.x ? -42 : 42);
+          endX = p2.x + (p1.x <= p2.x ? -mw2 / 2 : mw2 / 2);
         }
 
         const startY = p1.y + offset;
@@ -1166,9 +1180,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
             ctx.stroke();
           }
 
-          // Terminal connection circles
+          // Terminal connection circles matching mass ports [-18, 0, 18]
           const portX = isRightWall ? (wx - 16) : (wx + 16);
-          [-28, 0, 28].forEach(offY => {
+          [-18, 0, 18].forEach(offY => {
             ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
             ctx.beginPath();
             ctx.arc(portX, wy + offY, 4.5, 0, 2 * Math.PI);
@@ -1183,8 +1197,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           // Vibrating Mass Block
           const mx = pos.x;
           const my = pos.y;
-          const mw = 84;
-          const mh = 56;
+          const isJunction = node.id.startsWith('junc') || (Number(node.mass) <= 0.1);
+          const mw = isJunction ? 42 : 84;
+          const mh = isJunction ? 26 : 56;
 
           // Shadow
           ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
@@ -1198,56 +1213,66 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
 
           // Top header band
+          const headerH = isJunction ? 11 : 18;
           ctx.fillStyle = isSelected ? '#2563EB' : '#1E40AF';
-          ctx.fillRect(mx - mw / 2, my - mh / 2, mw, 18);
+          ctx.fillRect(mx - mw / 2, my - mh / 2, mw, headerH);
           ctx.fillStyle = '#FFFFFF';
-          ctx.font = '700 10px monospace';
+          ctx.font = isJunction ? '700 8.5px monospace' : '700 10px monospace';
           ctx.textAlign = 'center';
-          const headerLabel = node.label || `m = ${node.mass || 1.0} kg`;
-          ctx.fillText(headerLabel, mx, my - mh / 2 + 13);
+          const headerLabel = node.label || (isJunction ? 'J₁' : `m = ${node.mass || 1.0} kg`);
+          ctx.fillText(headerLabel, mx, my - mh / 2 + (isJunction ? 8.5 : 13));
 
           // Live Telemetry inside Block
-          const massIdx = system.massIndexMap.get(node.id);
-          const curDisp = (massIdx !== undefined && simData.x[massIdx]) ? simData.x[massIdx][stepIdx] : 0;
-          ctx.fillStyle = '#0F172A';
-          ctx.font = '700 13px monospace';
-          ctx.fillText(`x = ${(curDisp * 100).toFixed(1)} cm`, mx, my + (node.label ? 6 : 14));
-          if (node.label) {
-            ctx.fillStyle = '#64748B';
-            ctx.font = '600 10px monospace';
-            ctx.fillText(`${(node.mass || 1.0).toFixed(1)} kg`, mx, my + 20);
+          if (!isJunction) {
+            const massIdx = system.massIndexMap.get(node.id);
+            const curDisp = (massIdx !== undefined && simData.x[massIdx]) ? simData.x[massIdx][stepIdx] : 0;
+            ctx.fillStyle = '#0F172A';
+            ctx.font = '700 13px monospace';
+            ctx.fillText(`x = ${(curDisp * 100).toFixed(1)} cm`, mx, my + (node.label ? 6 : 14));
+            if (node.label) {
+              ctx.fillStyle = '#64748B';
+              ctx.font = '600 10px monospace';
+              ctx.fillText(`${(node.mass || 1.0).toFixed(1)} kg`, mx, my + 20);
+            }
+          } else {
+            ctx.fillStyle = '#475569';
+            ctx.font = '600 9px monospace';
+            ctx.fillText('Junction', mx, my + 8);
           }
 
           // Connection Terminals
-          [-16, 0, 16].forEach(offY => {
+          [-18, 0, 18].forEach(offY => {
+            if (isJunction && Math.abs(offY) > 0) return;
             ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
             ctx.beginPath(); ctx.arc(mx - mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
             ctx.beginPath(); ctx.arc(mx + mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
           });
 
-          // Rollers / Bearings beneath mass
-          ctx.fillStyle = '#475569';
-          ctx.beginPath(); ctx.arc(mx - 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
-          ctx.beginPath(); ctx.arc(mx + 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
+          // Rollers / Bearings beneath mass (only for real masses, not lightweight junctions)
+          if (!isJunction) {
+            ctx.fillStyle = '#475569';
+            ctx.beginPath(); ctx.arc(mx - 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(mx + 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
 
-          // Continuous floor track that always extends under the rollers across the entire travel
-          const trackLeft = Math.min(pos.rawX - 56, mx - 44);
-          const trackRight = Math.max(pos.rawX + 56, mx + 44);
-          ctx.strokeStyle = '#94A3B8';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(trackLeft, my + mh / 2 + 10);
-          ctx.lineTo(trackRight, my + mh / 2 + 10);
-          ctx.stroke();
-
-          // Ground hatch marks under floor guide
-          ctx.strokeStyle = '#CBD5E1';
-          ctx.lineWidth = 1.2;
-          for (let hx = trackLeft + 8; hx <= trackRight - 4; hx += 14) {
+            // Continuous floor track that always extends under the rollers across the entire travel
+            const trackLeft = Math.min(pos.rawX - 56, mx - 44);
+            const trackRight = Math.max(pos.rawX + 56, mx + 44);
+            ctx.strokeStyle = '#94A3B8';
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(hx, my + mh / 2 + 10);
-            ctx.lineTo(hx - 5, my + mh / 2 + 16);
+            ctx.moveTo(trackLeft, my + mh / 2 + 10);
+            ctx.lineTo(trackRight, my + mh / 2 + 10);
             ctx.stroke();
+
+            // Ground hatch marks under floor guide
+            ctx.strokeStyle = '#CBD5E1';
+            ctx.lineWidth = 1.2;
+            for (let hx = trackLeft + 8; hx <= trackRight - 4; hx += 14) {
+              ctx.beginPath();
+              ctx.moveTo(hx, my + mh / 2 + 10);
+              ctx.lineTo(hx - 5, my + mh / 2 + 16);
+              ctx.stroke();
+            }
           }
         }
       });
@@ -1313,6 +1338,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
   // ── Chart Data for Real-Time Oscilloscope ───────────────────────────────────
   const timeChartData = useMemo(() => {
+    if (!simData || !simData.time || simData.time.length === 0) {
+      return { labels: [], datasets: [] };
+    }
     const colors = ['#2563EB', '#D97706', '#059669', '#7C3AED'];
     const sampleRate = Math.max(1, Math.floor(simData.time.length / 250));
     const sampledTime = simData.time.filter((_, i) => i % sampleRate === 0);
@@ -1331,10 +1359,13 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
   // ── Bode Chart Data ────────────────────────────────────────────────────────
   const bodeChartData = useMemo(() => {
+    if (!frfData || !frfData.freqsHz || frfData.freqsHz.length === 0) {
+      return { labels: [], datasets: [] };
+    }
     const colors = ['#2563EB', '#D97706', '#059669', '#7C3AED'];
     const datasets = system.massNodes.map((mNode, idx) => ({
       label: `${mNode.label || `Mass ${idx + 1}`} |H(jω)| (dB)`,
-      data: frfData.magDb[idx] || [],
+      data: frfData.magDb?.[idx] || [],
       borderColor: colors[idx % colors.length],
       borderWidth: 2,
       pointRadius: 0
@@ -1584,7 +1615,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                     setSelectedId('scope');
                     return;
                   }
-                  for (const [key, b] of Object.entries(simulinkBlocks)) {
+                  for (const [, b] of Object.entries(simulinkBlocks)) {
                     let hit = false;
                     if (b.r) hit = Math.hypot(mx - b.x, my - b.y) <= b.r;
                     else hit = Math.abs(mx - b.x) <= b.w / 2 && Math.abs(my - b.y) <= b.h / 2;
@@ -2154,46 +2185,46 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         </div>
 
         {/* Tab Navigation Deck */}
-        <div className="smd-tabs-deck">
+        <div className="smd-tabs-deck" ref={tabDeckRef}>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'classroom' ? 'active' : ''}`}
-            onClick={() => setActiveTab('classroom')}
+            onClick={() => handleTabSwitch('classroom')}
           >
             🎓 Classroom Problem Solver (Step-by-Step Derivation)
           </button>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'simulate' ? 'active' : ''}`}
-            onClick={() => setActiveTab('simulate')}
+            onClick={() => handleTabSwitch('simulate')}
           >
             📈 Motion Telemetry (Oscilloscope)
           </button>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'matrices' ? 'active' : ''}`}
-            onClick={() => setActiveTab('matrices')}
+            onClick={() => handleTabSwitch('matrices')}
           >
             🔢 System Matrices & Modal Eigenvalues
           </button>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'bode' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bode')}
+            onClick={() => handleTabSwitch('bode')}
           >
             📊 Frequency Response (Bode Plot)
           </button>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'analogy' ? 'active' : ''}`}
-            onClick={() => setActiveTab('analogy')}
+            onClick={() => handleTabSwitch('analogy')}
           >
             ⚡ Electrical Analogy (Maxwell & Firestone)
           </button>
           <button
             type="button"
             className={`smd-tab-btn ${activeTab === 'simulink_model' ? 'active' : ''}`}
-            onClick={() => setActiveTab('simulink_model')}
+            onClick={() => handleTabSwitch('simulink_model')}
           >
             🎛️ Simulink Model & State-Space
           </button>
@@ -2305,7 +2336,42 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           )}
           {activeTab === 'simulate' && (
             <div className="smd-chart-card">
-              <div style={{ height: 250 }}>
+              <div className="smd-chart-card-header">
+                <div>
+                  <div className="smd-chart-card-title">
+                    <span className="smd-chart-badge">Time-Domain</span>
+                    <span>Multi-Channel Motion Telemetry (Oscilloscope)</span>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                    Real-time numerical Runge-Kutta (RK4) integration tracking displacement x(t) over 8.0s (dt = 0.005s)
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                    Time: {(simTimeState).toFixed(2)}s / 8.00s
+                  </span>
+                  <button
+                    type="button"
+                    className="smd-btn-play"
+                    onClick={() => setIsPlaying(p => !p)}
+                    style={{ fontSize: '11px', padding: '4px 10px' }}
+                  >
+                    {isPlaying ? '⏸ Pause' : '▶ Play'}
+                  </button>
+                  <button
+                    type="button"
+                    className="smd-btn-reset"
+                    onClick={() => {
+                      simTimeRef.current = 0;
+                      setSimTimeState(0);
+                    }}
+                    style={{ fontSize: '11px', padding: '4px 10px' }}
+                  >
+                    ⏮ Reset
+                  </button>
+                </div>
+              </div>
+              <div style={{ height: 260, position: 'relative', width: '100%' }}>
                 <Line
                   data={timeChartData}
                   options={{
@@ -2362,7 +2428,23 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
           {activeTab === 'bode' && (
             <div className="smd-chart-card">
-              <div style={{ height: 250 }}>
+              <div className="smd-chart-card-header">
+                <div>
+                  <div className="smd-chart-card-title">
+                    <span className="smd-chart-badge" style={{ background: '#ECFDF5', color: '#047857', borderColor: '#A7F3D0' }}>Frequency-Domain</span>
+                    <span>Bode Frequency Response Function |H(jω)|</span>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                    Steady-state dynamic magnification spectrum across 0 to 40 Hz identifying resonance peaks
+                  </p>
+                </div>
+                {modalData?.frequenciesHz?.[0] !== undefined && (
+                  <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#1E293B', background: '#F1F5F9', padding: '4px 8px', borderRadius: '6px' }}>
+                    Resonance Mode 1: {modalData.frequenciesHz[0].toFixed(2)} Hz ({modalData.frequenciesRad[0].toFixed(2)} rad/s)
+                  </div>
+                )}
+              </div>
+              <div style={{ height: 260, position: 'relative', width: '100%' }}>
                 <Line
                   data={bodeChartData}
                   options={{
@@ -3105,8 +3187,8 @@ function drawSimulinkCanvas(
     const gain_m2 = blocks.gain_m2 || def.gain_m2;
     const int_v2 = blocks.int_v2 || def.int_v2;
     const int_x2 = blocks.int_x2 || def.int_x2;
-    const gain_c2 = blocks.gain_c2 || def.gain_c2;
-    const gain_k2 = blocks.gain_k2 || def.gain_k2;
+    const _gain_c2 = blocks.gain_c2 || def.gain_c2;
+    const _gain_k2 = blocks.gain_k2 || def.gain_k2;
 
     const mux = blocks.mux || def.mux;
     const scope = blocks.scope || def.scope;

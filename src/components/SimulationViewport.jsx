@@ -71,7 +71,7 @@ export const SimulationViewport = ({
     const bobY = pivotY + L * Math.cos(thetaRad);
 
     return { pivotX, pivotY, L, bobRadius, bobX, bobY, w, h, currentAngleDeg, lengthVal, massVal };
-  }, [params, animIdx, simData, isDraggingBob, dragAngle, canvasRef]);
+  }, [params, paramsRef, animIdx, simData, isDraggingBob, dragAngle, canvasRef]);
 
   // Pointer event handlers for direct bob drag
   const handlePointerDown = (e) => {

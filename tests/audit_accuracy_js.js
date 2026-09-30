@@ -9,20 +9,13 @@
  */
 
 import {
-  solveFourBarPosition,
-  solveFourBarVelocityAndAcceleration,
-  classifyGrashof,
-  solveSliderCrank,
   exactSimplePendulumPeriod,
   measureNumericalPeriod,
-  rk4StepSimplePendulum,
-  rk4StepCompoundPendulum,
   exactCompoundPendulumPeriod
 } from '../src/core/kinematics.js';
 
 import {
   assembleGraphMCK,
-  solveGraphModal,
   simulateGraphTimeDomain,
   solveClassroomProblem
 } from '../src/core/smdSolver.js';

@@ -1059,6 +1059,47 @@ input[type="range"].param-range-slider::-moz-range-track {
   border: 1px solid #FECACA;
 }
 
+.feasibility-panel.compact {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+
+.feasibility-panel.compact .feasibility-headline {
+  font-size: 12px;
+  margin: 2px 0;
+}
+
+.feasibility-panel.compact .feasibility-summary {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.feasibility-panel.compact .feasibility-metrics-strip {
+  margin-top: 6px;
+  padding-top: 6px;
+  gap: 4px;
+}
+
+.feasibility-details-toggle-btn {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.feasibility-details-toggle-btn:hover {
+  background: #FFFFFF;
+  border-color: #2563EB;
+  color: #2563EB;
+}
+
 .feasibility-title-row {
   display: flex;
   align-items: center;
@@ -4131,7 +4172,9 @@ input[type="range"].param-range-slider::-moz-range-track {
   display: flex;
   flex-direction: column;
   box-shadow: 0 24px 64px rgba(7, 34, 78, 0.18);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
   animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   margin: auto;
 }
@@ -4369,7 +4412,7 @@ input[type="range"].param-range-slider::-moz-range-track {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: inset 0 2px 6px rgba(7, 34, 78, 0.03);
-  height: 500px;
+  height: clamp(340px, 42vh, 420px);
 }
 
 .smd-interactive-canvas {
@@ -4556,6 +4599,11 @@ input[type="range"].param-range-slider::-moz-range-track {
   padding: 10px 24px 0 24px;
   background: #FFFFFF;
   border-bottom: 1px solid var(--kx-border-light);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .smd-tab-btn {
@@ -4568,6 +4616,7 @@ input[type="range"].param-range-slider::-moz-range-track {
   color: var(--kx-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .smd-tab-btn:hover {
@@ -4580,10 +4629,48 @@ input[type="range"].param-range-slider::-moz-range-track {
 }
 
 .smd-tab-viewport {
-  padding: 16px 24px 24px 24px;
-  overflow-y: auto;
-  max-height: 380px;
+  padding: 16px 24px 28px 24px;
+  min-height: 340px;
+  flex-shrink: 0;
   background: #FFFFFF;
+}
+
+.smd-chart-card {
+  background: #F8FAFC;
+  border: 1px solid var(--kx-border-light);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.smd-chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.smd-chart-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.smd-chart-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+  text-transform: uppercase;
 }
 
 .smd-modal-kpi-grid {

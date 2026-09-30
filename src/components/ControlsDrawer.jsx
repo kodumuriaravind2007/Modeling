@@ -8,7 +8,7 @@ export const ControlsDrawer = ({
   simType,
   simulations,
   params,
-  paramsRef,
+  paramsRef: _paramsRef,
   setParams,
   onParamDragLive,
   onParamCommit,
@@ -95,8 +95,9 @@ export const ControlsDrawer = ({
   // Live Kinematic & Assembly Constraints Verification
   const activeParams = localParams || params;
   const feas = checkFeasibility(simType, activeParams);
+  const isImpossible = feas.status === FEASIBILITY_STATUS.IMPOSSIBLE;
+  const isWarning = feas.status === FEASIBILITY_STATUS.WARNING;
   const isConstrainedOrInvalid = feas.status !== FEASIBILITY_STATUS.OK;
-  let validationError = isConstrainedOrInvalid ? `${feas.title}: ${feas.summary}` : null;
   let grashofInfo = null;
 
   if (simType === 'four_bar') {
@@ -158,7 +159,7 @@ export const ControlsDrawer = ({
         {/* Drawer Body */}
         <div className="drawer-body">
           {/* Engineering Feasibility & Dynamic Validation Panel */}
-          <FeasibilityPanel simType={simType} params={activeParams} />
+          <FeasibilityPanel simType={simType} params={activeParams} compact={true} />
 
           {/* Real-time Grashof Classification */}
           {grashofInfo && (
@@ -398,23 +399,23 @@ export const ControlsDrawer = ({
         <div className="drawer-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {isConstrainedOrInvalid && (
             <div style={{
-              background: feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-              border: `1.5px solid ${feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '#EF4444' : '#F59E0B'}`,
+              background: isImpossible ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+              border: `1.5px solid ${isImpossible ? '#EF4444' : '#F59E0B'}`,
               borderRadius: '8px',
               padding: '10px 12px',
               fontSize: '11px',
               color: '#1E293B',
               lineHeight: 1.45
             }}>
-              <div style={{ fontWeight: 800, color: feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '#DC2626' : '#D97706', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
-                <span>{feas.status === FEASIBILITY_STATUS.IMPOSSIBLE ? '⛔' : '⚠️'}</span>
+              <div style={{ fontWeight: 800, color: isImpossible ? '#DC2626' : '#D97706', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
+                <span>{isImpossible ? '⛔' : '⚠️'}</span>
                 <span>{feas.title}</span>
               </div>
               <div style={{ marginTop: '3px', color: '#334155', fontWeight: 500 }}>
                 {feas.summary}
               </div>
               {feas.checks?.[0]?.fix?.[0] && (
-                <div style={{ marginTop: '5px', fontSize: '10.5px', color: '#1D4ED8', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                <div style={{ marginTop: '5px', fontSize: '10.5px', color: isImpossible ? '#DC2626' : '#1D4ED8', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
                   <span>💡</span>
                   <span>{feas.checks[0].fix[0]}</span>
                 </div>
@@ -435,19 +436,19 @@ export const ControlsDrawer = ({
               type="button"
               className="btn-drawer-primary"
               onClick={() => {
-                if (isConstrainedOrInvalid) return;
+                if (isImpossible) return;
                 onRunSimulation();
                 onClose();
               }}
-              disabled={loading || isConstrainedOrInvalid}
+              disabled={loading || isImpossible}
               style={{
                 flex: 2,
-                opacity: isConstrainedOrInvalid ? 0.6 : 1,
-                cursor: isConstrainedOrInvalid ? 'not-allowed' : 'pointer'
+                opacity: isImpossible ? 0.6 : 1,
+                cursor: isImpossible ? 'not-allowed' : 'pointer'
               }}
-              title={isConstrainedOrInvalid ? `Cannot run: ${feas.title}. Please resolve constraints before running.` : 'Apply parameters and run simulation'}
+              title={isImpossible ? `Cannot run: ${feas.title}. Please resolve geometric constraints.` : isWarning ? `Run simulation (Note: ${feas.summary})` : 'Apply parameters and run simulation'}
             >
-              {loading ? 'Computing...' : isConstrainedOrInvalid ? 'Constrained (Cannot Run)' : 'Run Simulation ▶'}
+              {loading ? 'Computing...' : isImpossible ? 'Infeasible (Cannot Run)' : isWarning ? 'Run Simulation ⚠️' : 'Run Simulation ▶'}
             </button>
           </div>
         </div>
