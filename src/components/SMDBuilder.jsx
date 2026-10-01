@@ -14,6 +14,7 @@ import { SimulinkScopeModal } from './SimulinkScopeModal.jsx';
 const PRESETS = {
   parallel_springs: {
     name: 'Parallel Springs (k₁ + k₂)',
+    shortLabel: 'Problem 1: Parallel (1-DOF)',
     badge: 'Classroom Exam Problem',
     description: 'Two parallel springs (k₁ = 150 N/m, k₂ = 250 N/m) attached to mass m₁ with damper c₁',
     nodes: [
@@ -29,11 +30,12 @@ const PRESETS = {
   },
   series_springs: {
     name: 'Series Springs (k₁k₂/(k₁+k₂))',
+    shortLabel: 'Problem 2: Series (1-DOF)',
     badge: 'Classroom Exam Problem',
-    description: 'Two springs in series with an intermediate junction node before the main mass',
+    description: 'Two springs in series with an intermediate massless junction node before the main mass',
     nodes: [
       { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Wall' },
-      { id: 'junc1', type: 'mass', x: 280, y: 220, mass: 0.05, x0: 0.075, v0: 0.0, label: 'Junction J₁' },
+      { id: 'junc1', type: 'mass', x: 280, y: 220, mass: 0.05, x0: 0.075, v0: 0.0, label: 'Junction J₁ (m ≈ 0)', isJunction: true },
       { id: 'm1', type: 'mass', x: 500, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
@@ -44,11 +46,12 @@ const PRESETS = {
   },
   series_parallel: {
     name: 'Series-Parallel Network',
+    shortLabel: 'Problem 3: Series-Par. (1-DOF)',
     badge: 'Textbook Challenge',
     description: 'Combined spring network: Spring k₁ in series with a parallel pair (k₂ || k₃)',
     nodes: [
       { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Wall' },
-      { id: 'junc1', type: 'mass', x: 280, y: 220, mass: 0.05, x0: 0.06, v0: 0.0, label: 'Junction J₁' },
+      { id: 'junc1', type: 'mass', x: 280, y: 220, mass: 0.05, x0: 0.06, v0: 0.0, label: 'Junction J₁ (m ≈ 0)', isJunction: true },
       { id: 'm1', type: 'mass', x: 520, y: 220, mass: 3.0, x0: 0.12, v0: 0.0, label: 'm₁ (3.0 kg)' }
     ],
     edges: [
@@ -60,6 +63,7 @@ const PRESETS = {
   },
   underdamped_sdof: {
     name: 'Underdamped SDOF (ζ < 1)',
+    shortLabel: 'Underdamped (1-DOF)',
     badge: 'Oscillation & Decay',
     description: 'Standard single degree of freedom system undergoing damped harmonic free vibration',
     nodes: [
@@ -73,6 +77,7 @@ const PRESETS = {
   },
   critically_damped: {
     name: 'Critically Damped (ζ = 1.0)',
+    shortLabel: 'Critical (1-DOF)',
     badge: 'Fast Return Boundary',
     description: 'Critical viscous damping coefficient c = 2√(m·k) for fastest non-oscillatory return',
     nodes: [
@@ -86,6 +91,7 @@ const PRESETS = {
   },
   overdamped: {
     name: 'Overdamped SDOF (ζ > 1)',
+    shortLabel: 'Overdamped (1-DOF)',
     badge: 'Sluggish Return',
     description: 'Heavy damping (c > c_c) causing exponential non-oscillatory decay',
     nodes: [
@@ -99,6 +105,7 @@ const PRESETS = {
   },
   tmd_system: {
     name: '2-DOF Tuned Mass Damper',
+    shortLabel: 'TMD (2-DOF)',
     badge: 'Industrial Absorber',
     description: 'Primary structure protected by an auxiliary tuned vibration absorber',
     nodes: [
@@ -116,6 +123,7 @@ const PRESETS = {
   },
   forced_harmonic: {
     name: '1-DOF Forced Harmonic (Resonance)',
+    shortLabel: 'Resonance (1-DOF)',
     badge: 'Resonance Peak',
     description: 'Harmonic sinusoidal excitation near resonance (ω = 10 rad/s ≈ ω_n) demonstrating dynamic magnification',
     nodes: [
@@ -130,6 +138,7 @@ const PRESETS = {
   },
   coupled_oscillators: {
     name: '2-DOF Coupled Oscillators (Beats)',
+    shortLabel: 'Coupled (2-DOF)',
     badge: 'Beat Phenomenon',
     description: 'Two identical masses coupled by a spring showing energy transfer and periodic beat envelopes',
     nodes: [
@@ -148,6 +157,7 @@ const PRESETS = {
   },
   quarter_car: {
     name: 'Quarter-Car Suspension Model',
+    shortLabel: 'Quarter-Car (2-DOF)',
     badge: 'Automotive 2-DOF',
     description: 'Two-mass vehicle dynamics: sprung body (m_s) and unsprung wheel/axle (m_u) on compliant tire and damper',
     nodes: [
@@ -258,16 +268,20 @@ export const SMDBuilder = ({ onClose }) => {
   const backdropMouseDownRef = useRef(false);
 
   // Dynamic mass count synchronization for Simulink block diagram
-  const massCount = nodes.filter(n => n.type === 'mass').length;
-  const prevMassCountRef = useRef(massCount);
-  const [simulinkBlocks, setSimulinkBlocks] = useState(() => getDefaultSimulinkBlocks(massCount));
+  const primaryMassCount = nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc')).length;
+  const effectiveDOF = Math.max(1, primaryMassCount >= 2 ? primaryMassCount : 1);
+  const prevDOFRef = useRef(effectiveDOF);
+  const [simulinkBlocks, setSimulinkBlocks] = useState(() => getDefaultSimulinkBlocks(effectiveDOF));
 
   useEffect(() => {
-    if (prevMassCountRef.current !== massCount) {
-      prevMassCountRef.current = massCount;
-      setSimulinkBlocks(getDefaultSimulinkBlocks(massCount));
+    if (prevDOFRef.current !== effectiveDOF) {
+      prevDOFRef.current = effectiveDOF;
+      setSimulinkBlocks(getDefaultSimulinkBlocks(effectiveDOF));
     }
-  }, [massCount]);
+  }, [effectiveDOF]);
+
+  // Matrix view toggle: 'condensed' (physical 1-DOF) or 'numerical' (ODE 2-node mesh)
+  const [matrixViewMode, setMatrixViewMode] = useState('condensed');
 
   // Canvas Refs
   const canvasRef = useRef(null);
@@ -376,6 +390,49 @@ export const SMDBuilder = ({ onClose }) => {
     return solveClassroomProblem(nodes, edges, { x0, v0 });
   }, [nodes, edges]);
 
+  // Physical DOF and Mass Classification (separates real payload masses from massless spring junctions)
+  const primaryMassNodes = useMemo(() => {
+    return nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'));
+  }, [nodes]);
+
+  const junctionNodes = useMemo(() => {
+    return nodes.filter(n => n.type === 'mass' && (n.isJunction || n.id.startsWith('junc')));
+  }, [nodes]);
+
+  const isTrue2DOF = primaryMassNodes.length >= 2;
+  const isEquivalentSDOF = junctionNodes.length > 0 && primaryMassNodes.length === 1;
+
+  // Physical Condensed Matrices & Modal Dynamics (eliminating zero-mass junction DOFs via Guyan reduction)
+  const physicalSystemData = useMemo(() => {
+    if (isEquivalentSDOF && classroomSolution) {
+      const m = Number(classroomSolution.m) || 2.0;
+      const k_eq = Number(classroomSolution.k_eq) || 100.0;
+      const c_eq = Number(classroomSolution.c_eq) || 0.0;
+      const omega_n = Number(classroomSolution.omega_n) || Math.sqrt(k_eq / m);
+      const fn = omega_n / (2 * Math.PI);
+      const zeta = Number(classroomSolution.zeta) || 0.0;
+
+      return {
+        M: [[Number(m.toFixed(2))]],
+        K: [[Number(k_eq.toFixed(1))]],
+        C: [[Number(c_eq.toFixed(2))]],
+        frequenciesHz: [Number(fn.toFixed(2))],
+        frequenciesRad: [Number(omega_n.toFixed(2))],
+        dampingRatios: [Number(zeta.toFixed(4))],
+        modeShapes: [[1.0]],
+      };
+    }
+    return {
+      M: system.M,
+      K: system.K,
+      C: system.C,
+      frequenciesHz: modalData.frequenciesHz,
+      frequenciesRad: modalData.frequenciesRad,
+      dampingRatios: modalData.dampingRatios,
+      modeShapes: modalData.modeShapes
+    };
+  }, [isEquivalentSDOF, classroomSolution, system, modalData]);
+
   // ── Copy Solution Handler ───────────────────────────────────────────────────
   const handleCopySolution = () => {
     if (!classroomSolution || !classroomSolution.steps) return;
@@ -413,12 +470,12 @@ export const SMDBuilder = ({ onClose }) => {
 
 // ── Robust Production-Grade MATLAB / Simulink Script Generator ───────────
 function generateMatlabScript(system, nodes, edges, classroomSolution) {
-  const massNodes = (nodes || []).filter(n => n.type === 'mass');
-  const n = massNodes.length;
+  const primaryMassNodes = (nodes || []).filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'));
+  const isMultiDOF = primaryMassNodes.length > 1;
 
-  if (n <= 1) {
-    const primaryMass = massNodes[0] || { mass: 2.0 };
-    const m = Number(primaryMass.mass) || 2.0;
+  if (!isMultiDOF) {
+    const primaryMass = primaryMassNodes[0] || (nodes || []).find(n => n.type === 'mass') || { mass: 2.0 };
+    const m = Number(classroomSolution?.m) || Number(primaryMass.mass) || 2.0;
     const k = Number(classroomSolution?.k_eq) || 150.0;
     const c = Number(classroomSolution?.c_eq) || 2.0;
     const forceEdge = (edges || []).find(e => e.type === 'force');
@@ -693,7 +750,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     setActivePreset(key);
     setNodes(JSON.parse(JSON.stringify(PRESETS[key].nodes)));
     setEdges(JSON.parse(JSON.stringify(PRESETS[key].edges)));
-    setSelectedId(PRESETS[key].nodes.find(n => n.type === 'mass')?.id || null);
+    setSelectedId(PRESETS[key].nodes.find(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'))?.id || PRESETS[key].nodes.find(n => n.type === 'mass')?.id || null);
     simTimeRef.current = 0;
   };
 
@@ -1480,7 +1537,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 onClick={() => loadPreset(key)}
                 title={p.name}
               >
-                {p.shortLabel || p.name.split(' ')[0]}
+                {p.shortLabel || p.name}
               </button>
             ))}
           </div>
@@ -1591,55 +1648,57 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         <div className="smd-workspace-layout">
           {/* Interactive Simulink Canvas */}
           <div className="smd-canvas-container">
-            <canvas
-              ref={canvasRef}
-              className="smd-interactive-canvas"
-              onMouseDown={handleCanvasMouseDown}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseUp={handleCanvasMouseUp}
-              onClick={(e) => {
-                if (hasDraggedRef.current) {
-                  hasDraggedRef.current = false;
-                  return;
-                }
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                const rect = canvas.getBoundingClientRect();
-                const mx = e.clientX - rect.left;
-                const my = e.clientY - rect.top;
-
-                if (canvasMode === 'simulink') {
-                  const sc = simulinkBlocks.scope;
-                  if (sc && Math.abs(mx - sc.x) <= sc.w / 2 && Math.abs(my - sc.y) <= sc.h / 2) {
-                    setShowScopeModal(true);
-                    setSelectedId('scope');
+            <div className="smd-canvas-viewport">
+              <canvas
+                ref={canvasRef}
+                className="smd-interactive-canvas"
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onClick={(e) => {
+                  if (hasDraggedRef.current) {
+                    hasDraggedRef.current = false;
                     return;
                   }
-                  for (const [, b] of Object.entries(simulinkBlocks)) {
-                    let hit = false;
-                    if (b.r) hit = Math.hypot(mx - b.x, my - b.y) <= b.r;
-                    else hit = Math.abs(mx - b.x) <= b.w / 2 && Math.abs(my - b.y) <= b.h / 2;
-                    if (hit) {
-                      setSelectedId(b.id);
+                  const canvas = canvasRef.current;
+                  if (!canvas) return;
+                  const rect = canvas.getBoundingClientRect();
+                  const mx = e.clientX - rect.left;
+                  const my = e.clientY - rect.top;
+
+                  if (canvasMode === 'simulink') {
+                    const sc = simulinkBlocks.scope;
+                    if (sc && Math.abs(mx - sc.x) <= sc.w / 2 && Math.abs(my - sc.y) <= sc.h / 2) {
+                      setShowScopeModal(true);
+                      setSelectedId('scope');
+                      return;
+                    }
+                    for (const [, b] of Object.entries(simulinkBlocks)) {
+                      let hit = false;
+                      if (b.r) hit = Math.hypot(mx - b.x, my - b.y) <= b.r;
+                      else hit = Math.abs(mx - b.x) <= b.w / 2 && Math.abs(my - b.y) <= b.h / 2;
+                      if (hit) {
+                        setSelectedId(b.id);
+                        return;
+                      }
+                    }
+                    return;
+                  }
+
+                  for (const n of nodes) {
+                    const isM = n.type === 'mass';
+                    const pos = currentPosMapRef.current.get(n.id) || n;
+                    if (Math.abs(mx - pos.x) < (isM ? 44 : 20) && Math.abs(my - pos.y) < (isM ? 32 : 48)) {
+                      handleNodeClick(n.id);
                       return;
                     }
                   }
-                  return;
-                }
+                }}
+                onDoubleClick={handleCanvasDoubleClick}
+              />
+            </div>
 
-                for (const n of nodes) {
-                  const isM = n.type === 'mass';
-                  const pos = currentPosMapRef.current.get(n.id) || n;
-                  if (Math.abs(mx - pos.x) < (isM ? 44 : 20) && Math.abs(my - pos.y) < (isM ? 32 : 48)) {
-                    handleNodeClick(n.id);
-                    return;
-                  }
-                }
-              }}
-              onDoubleClick={handleCanvasDoubleClick}
-            />
-
-            {/* Canvas Bottom Playback Overlay */}
+            {/* Canvas Bottom Playback Dock */}
             <div className="smd-canvas-controls">
               <button
                 type="button"
@@ -1854,15 +1913,15 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 </div>
                 <div className="smd-field-row">
                   <label>Signals:</label>
-                  <span className="smd-field-val">{system.n >= 2 ? 'x₁(t), x₂(t), F₁(t) via Mux' : 'x(t), ẋ(t), F(t) via Mux'}</span>
+                  <span className="smd-field-val">{isTrue2DOF ? 'x₁(t), x₂(t), F₁(t) via Mux' : 'x(t), ẋ(t), F(t) via Mux'}</span>
                 </div>
                 <div className="smd-field-row">
-                  <label>Mass 1 Disp x₁:</label>
+                  <label>{isTrue2DOF ? 'Mass 1 Disp x₁:' : 'Payload Disp x:'}</label>
                   <span className="smd-field-val" style={{ fontFamily: 'monospace', color: '#16A34A', fontWeight: 700 }}>
-                    {((simData?.x?.[0]?.[Math.min((simData?.x?.[0]?.length || 1) - 1, Math.round(simTimeState / 0.005))] || 0) * 100).toFixed(2)} cm
+                    {((simData?.x?.[isTrue2DOF ? 0 : Math.max(0, (system.massNodes || []).findIndex(n => !n.isJunction && !n.id.startsWith('junc')))]?.[Math.min((simData?.x?.[0]?.length || 1) - 1, Math.round(simTimeState / 0.005))] || 0) * 100).toFixed(2)} cm
                   </span>
                 </div>
-                {system.n >= 2 && (
+                {isTrue2DOF && (
                   <div className="smd-field-row">
                     <label>Mass 2 Disp x₂:</label>
                     <span className="smd-field-val" style={{ fontFamily: 'monospace', color: '#0284C7', fontWeight: 700 }}>
@@ -1871,9 +1930,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                   </div>
                 )}
                 <div className="smd-field-row">
-                  <label>Mass 1 Vel v₁:</label>
+                  <label>{isTrue2DOF ? 'Mass 1 Vel v₁:' : 'Payload Vel ẋ:'}</label>
                   <span className="smd-field-val" style={{ fontFamily: 'monospace', color: '#7C3AED', fontWeight: 700 }}>
-                    {(simData?.v?.[0]?.[Math.min((simData?.v?.[0]?.length || 1) - 1, Math.round(simTimeState / 0.005))] || 0).toFixed(3)} m/s
+                    {(simData?.v?.[isTrue2DOF ? 0 : Math.max(0, (system.massNodes || []).findIndex(n => !n.isJunction && !n.id.startsWith('junc')))]?.[Math.min((simData?.v?.[0]?.length || 1) - 1, Math.round(simTimeState / 0.005))] || 0).toFixed(3)} m/s
                   </span>
                 </div>
                 <div style={{ marginTop: '14px' }}>
@@ -1988,17 +2047,17 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               <div className="smd-inspector-body">
                 <div className="smd-field-row">
                   <label>Block:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 800 }}>SUMMING JUNCTION (Σ₁)</span>
+                  <span className="smd-field-val" style={{ fontWeight: 800 }}>{isTrue2DOF ? 'SUMMING JUNCTION (Σ₁)' : 'SUMMING JUNCTION (Σ)'}</span>
                 </div>
                 <div className="smd-field-row">
                   <label>Equation:</label>
                   <span className="smd-field-val" style={{ fontFamily: 'monospace', fontSize: '11px' }}>
-                    {system.n >= 2 ? '∑F₁ = F₁(t) - Fd₁ - Fs₁ - Fd₁₂ - Fs₁₂' : '∑F = F(t) - c·ẋ - k·x'}
+                    {isTrue2DOF ? '∑F₁ = F₁(t) - Fd₁ - Fs₁ - Fd₁₂ - Fs₁₂' : '∑F = F(t) - c_eq·ẋ - k_eq·x'}
                   </span>
                 </div>
                 <div className="smd-field-row">
                   <label>Signs:</label>
-                  <span className="smd-field-val">+ Force F₁, - Damping, - Spring, - Coupling</span>
+                  <span className="smd-field-val">+ Force F₁, - Damping, - Spring{isTrue2DOF ? ', - Coupling' : ''}</span>
                 </div>
               </div>
             ) : selectedId === 'sum2' ? (
@@ -2022,19 +2081,19 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               <div className="smd-inspector-body">
                 <div className="smd-field-row">
                   <label>Block:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 800 }}>MASS 1 GAIN (1/m₁)</span>
+                  <span className="smd-field-val" style={{ fontWeight: 800 }}>{isTrue2DOF ? 'MASS 1 GAIN (1/m₁)' : 'MASS GAIN (1/m)'}</span>
                 </div>
                 <div className="smd-field-row">
-                  <label>Mass Value m₁:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 700 }}>{(system.M?.[0]?.[0] || 2.0).toFixed(2)} kg</span>
+                  <label>{isTrue2DOF ? 'Mass Value m₁:' : 'Payload Mass m:'}</label>
+                  <span className="smd-field-val" style={{ fontWeight: 700 }}>{(isTrue2DOF ? (system.M?.[0]?.[0] || 2.0) : (Number(classroomSolution?.m) || Number(primaryMassNodes[0]?.mass) || 2.0)).toFixed(2)} kg</span>
                 </div>
                 <div className="smd-field-row">
                   <label>Gain Value:</label>
-                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>1/m₁ = {(1 / (system.M?.[0]?.[0] || 2.0)).toFixed(3)} kg⁻¹</span>
+                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>1/m = {(1 / (isTrue2DOF ? (system.M?.[0]?.[0] || 2.0) : (Number(classroomSolution?.m) || Number(primaryMassNodes[0]?.mass) || 2.0))).toFixed(3)} kg⁻¹</span>
                 </div>
                 <div className="smd-field-row">
                   <label>Equation:</label>
-                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>ẍ₁ = ∑F₁ / m₁</span>
+                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>{isTrue2DOF ? 'ẍ₁ = ∑F₁ / m₁' : 'ẍ = ∑F / m'}</span>
                 </div>
               </div>
             ) : selectedId === 'gain_m2' ? (
@@ -2098,30 +2157,34 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               <div className="smd-inspector-body">
                 <div className="smd-field-row">
                   <label>Block:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 800 }}>GROUND DAMPER (c₁)</span>
+                  <span className="smd-field-val" style={{ fontWeight: 800 }}>{isTrue2DOF ? 'GROUND DAMPER (c₁)' : 'EQUIVALENT DAMPER (c_eq)'}</span>
                 </div>
                 <div className="smd-field-row">
                   <label>Damping Coeff:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 700 }}>{Math.max(0, (system.C?.[0]?.[0] || 0) + (system.n >= 2 ? (system.C?.[0]?.[1] || 0) : 0)).toFixed(2)} N·s/m</span>
+                  <span className="smd-field-val" style={{ fontWeight: 700 }}>
+                    {(isTrue2DOF ? Math.max(0, (system.C?.[0]?.[0] || 0) + (system.C?.[0]?.[1] || 0)) : (Number(classroomSolution?.c_eq) || system.C?.[0]?.[0] || 0)).toFixed(2)} N·s/m
+                  </span>
                 </div>
                 <div className="smd-field-row">
                   <label>Equation:</label>
-                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>Fd₁ = c₁·ẋ₁</span>
+                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>{isTrue2DOF ? 'Fd₁ = c₁·ẋ₁' : 'Fd = c_eq·ẋ'}</span>
                 </div>
               </div>
             ) : (selectedId === 'gain_k' || selectedId === 'gain_k1') ? (
               <div className="smd-inspector-body">
                 <div className="smd-field-row">
                   <label>Block:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 800 }}>GROUND SPRING (k₁)</span>
+                  <span className="smd-field-val" style={{ fontWeight: 800 }}>{isTrue2DOF ? 'GROUND SPRING (k₁)' : 'EQUIVALENT SPRING (k_eq)'}</span>
                 </div>
                 <div className="smd-field-row">
                   <label>Stiffness:</label>
-                  <span className="smd-field-val" style={{ fontWeight: 700 }}>{Math.max(0, (system.K?.[0]?.[0] || 0) + (system.n >= 2 ? (system.K?.[0]?.[1] || 0) : 0)).toFixed(1)} N/m</span>
+                  <span className="smd-field-val" style={{ fontWeight: 700 }}>
+                    {(isTrue2DOF ? Math.max(0, (system.K?.[0]?.[0] || 0) + (system.K?.[0]?.[1] || 0)) : (Number(classroomSolution?.k_eq) || system.K?.[0]?.[0] || 0)).toFixed(1)} N/m
+                  </span>
                 </div>
                 <div className="smd-field-row">
                   <label>Equation:</label>
-                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>Fs₁ = k₁·x₁</span>
+                  <span className="smd-field-val" style={{ fontFamily: 'monospace' }}>{isTrue2DOF ? 'Fs₁ = k₁·x₁' : 'Fs = k_eq·x'}</span>
                 </div>
               </div>
             ) : selectedId === 'gain_c2' ? (
@@ -2162,7 +2225,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 </div>
                 <div className="smd-field-row">
                   <label>Function:</label>
-                  <span className="smd-field-val">{system.n >= 2 ? 'Multiplexes [x₁(t), x₂(t)] into bus for Scope' : 'Multiplexes signals into bus for Scope'}</span>
+                  <span className="smd-field-val">{isTrue2DOF ? 'Multiplexes [x₁(t), x₂(t)] into bus for Scope' : 'Multiplexes [x(t), ẋ(t)] into bus for Scope'}</span>
                 </div>
               </div>
             ) : (selectedId === 'src_f' || selectedId === 'src_f1' || selectedId === 'knob') ? (
@@ -2393,36 +2456,119 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
           {activeTab === 'matrices' && (
             <div className="smd-matrices-deck">
-              <div className="smd-modal-kpi-grid">
-                {modalData.frequenciesHz.map((fn, i) => (
-                  <div key={i} className="smd-kpi-box">
-                    <div className="smd-kpi-badge">Mode {i + 1}</div>
-                    <div className="smd-kpi-num">{fn.toFixed(2)} Hz</div>
-                    <div className="smd-kpi-sub">
-                      ωₙ = {modalData.frequenciesRad[i].toFixed(2)} rad/s | ζ = {(modalData.dampingRatios[i] || 0).toFixed(3)}
-                    </div>
-                    <div className="smd-mode-vec">
-                      Mode Shape φ: [{modalData.modeShapes[i]?.map(v => v.toFixed(3)).join(', ')}]
-                    </div>
+              {isEquivalentSDOF && (
+                <div className="smd-matrix-header-bar">
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700 }}>
+                        Physical System: 1-DOF
+                      </span>
+                      <span>Spring Junction J₁ is Massless (m_junc = 0)</span>
+                    </span>
                   </div>
-                ))}
+                  <div className="smd-matrix-toggle-group">
+                    <button
+                      type="button"
+                      className={`smd-matrix-toggle-btn ${matrixViewMode === 'condensed' ? 'active' : ''}`}
+                      onClick={() => setMatrixViewMode('condensed')}
+                    >
+                      ✓ Physical 1-DOF Condensed (Classroom Standard)
+                    </button>
+                    <button
+                      type="button"
+                      className={`smd-matrix-toggle-btn ${matrixViewMode === 'numerical' ? 'active' : ''}`}
+                      onClick={() => setMatrixViewMode('numerical')}
+                    >
+                      Numerical 2-Node Mesh (ODE Step)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="smd-modal-kpi-grid">
+                {(isEquivalentSDOF && matrixViewMode === 'condensed'
+                  ? physicalSystemData.frequenciesHz
+                  : modalData.frequenciesHz
+                ).map((fn, i) => {
+                  const wr = isEquivalentSDOF && matrixViewMode === 'condensed'
+                    ? physicalSystemData.frequenciesRad[i]
+                    : modalData.frequenciesRad[i];
+                  const dr = isEquivalentSDOF && matrixViewMode === 'condensed'
+                    ? physicalSystemData.dampingRatios[i]
+                    : (modalData.dampingRatios[i] || 0);
+                  const phi = isEquivalentSDOF && matrixViewMode === 'condensed'
+                    ? physicalSystemData.modeShapes[i]
+                    : modalData.modeShapes[i];
+
+                  return (
+                    <div key={i} className="smd-kpi-box">
+                      <div className="smd-kpi-badge">
+                        {isEquivalentSDOF && matrixViewMode === 'condensed' ? 'Physical SDOF Mode' : `Mode ${i + 1}`}
+                      </div>
+                      <div className="smd-kpi-num">{fn.toFixed(2)} Hz</div>
+                      <div className="smd-kpi-sub">
+                        ωₙ = {wr.toFixed(2)} rad/s | ζ = {dr.toFixed(3)}
+                      </div>
+                      <div className="smd-mode-vec">
+                        Mode Shape φ: [{phi?.map(v => v.toFixed(3)).join(', ')}]
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Assembled Matrices */}
               <div className="smd-matrix-cards-grid">
                 <div className="smd-matrix-card">
-                  <h4>Mass Matrix [M] (kg)</h4>
-                  <pre>{JSON.stringify(system.M, null, 2)}</pre>
+                  <h4>
+                    Mass Matrix [M] (kg)
+                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(1×1 Scalar)</span>}
+                  </h4>
+                  <pre>
+                    {JSON.stringify(
+                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.M : system.M,
+                      null,
+                      2
+                    )}
+                  </pre>
                 </div>
                 <div className="smd-matrix-card">
-                  <h4>Stiffness Matrix [K] (N/m)</h4>
-                  <pre>{JSON.stringify(system.K, null, 2)}</pre>
+                  <h4>
+                    Stiffness Matrix [K] (N/m)
+                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(k_eq)</span>}
+                  </h4>
+                  <pre>
+                    {JSON.stringify(
+                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.K : system.K,
+                      null,
+                      2
+                    )}
+                  </pre>
                 </div>
                 <div className="smd-matrix-card">
-                  <h4>Damping Matrix [C] (N·s/m)</h4>
-                  <pre>{JSON.stringify(system.C, null, 2)}</pre>
+                  <h4>
+                    Damping Matrix [C] (N·s/m)
+                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(c_eq)</span>}
+                  </h4>
+                  <pre>
+                    {JSON.stringify(
+                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.C : system.C,
+                      null,
+                      2
+                    )}
+                  </pre>
                 </div>
               </div>
+
+              {isEquivalentSDOF && matrixViewMode === 'condensed' && (
+                <div className="smd-guyan-card">
+                  <strong>💡 Analytical Derivation (Guyan Static Condensation):</strong><br />
+                  In physical reality, the spring junction node J₁ connects springs in series with zero mass (m_junc = 0).
+                  Eliminating the massless junction coordinate statically yields an equivalent stiffness k_eq = {classroomSolution?.k_eq?.toFixed(1) || '100.0'} N/m.
+                  The physical system is strictly <strong>1-DOF</strong> (N = 1) with circular natural frequency ωₙ = {classroomSolution?.omega_n?.toFixed(2) || '7.07'} rad/s ({((classroomSolution?.omega_n || 7.07) / (2 * Math.PI)).toFixed(2)} Hz).
+                  The internal 0.05 kg virtual mass is only an artifact utilized for explicit RK4 numerical ODE time integration.
+                </div>
+              )}
             </div>
           )}
 
@@ -2584,7 +2730,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
               {/* Mathematical Equation & Block Diagram Mapping */}
               <div className="smd-simulink-grid">
-                {system.n >= 2 ? (
+                {isTrue2DOF ? (
                   <>
                     <div className="smd-simulink-card">
                       <h4>📐 1. Coupled 2-DOF State-Variable Formulation</h4>
@@ -3004,7 +3150,8 @@ function drawSimulinkCanvas(
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
   }
 
-  const is2DOF = (system?.n >= 2) || (nodes.filter(n => n.type === 'mass').length >= 2);
+  const primaryMassNodes = nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'));
+  const is2DOF = primaryMassNodes.length >= 2;
 
   // Header Title
   ctx.fillStyle = '#0F172A';
@@ -3013,7 +3160,7 @@ function drawSimulinkCanvas(
   if (is2DOF) {
     ctx.fillText('Simulink Model: 2-DOF Coupled Mass-Spring-Damper (Mẍ + Cẋ + Kx = F)', 18, 24);
   } else {
-    ctx.fillText('Simulink Model: Single-DOF Mass-Spring-Damper (mẍ + cẋ + kx = F)', 18, 24);
+    ctx.fillText('Simulink Model: Single-DOF Mass-Spring-Damper (mẍ + c_eq·ẋ + k_eq·x = F)', 18, 24);
   }
 
   ctx.fillStyle = '#64748B';
@@ -3031,6 +3178,13 @@ function drawSimulinkCanvas(
     ctx.fillStyle = '#0369A1';
     ctx.font = '700 10.5px monospace';
     ctx.fillText(`Mode 1: ωn₁ = ${modalData.frequenciesRad[0].toFixed(2)} rad/s  |  Mode 2: ωn₂ = ${modalData.frequenciesRad[1].toFixed(2)} rad/s`, w - 18, 24);
+    ctx.restore();
+  } else if (!is2DOF && classroomSolution?.omega_n) {
+    ctx.save();
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#0369A1';
+    ctx.font = '700 10.5px monospace';
+    ctx.fillText(`Natural Frequency: ωn = ${classroomSolution.omega_n.toFixed(2)} rad/s (${(classroomSolution.omega_n / (2 * Math.PI)).toFixed(2)} Hz)`, w - 18, 24);
     ctx.restore();
   }
 
@@ -3823,14 +3977,16 @@ function drawSimulinkCanvas(
   // ═══════════════════════════════════════════════════════════════════════════
   // CASE B: 1-DOF SINGLE MASS-SPRING-DAMPER SIMULINK MODEL
   // ═══════════════════════════════════════════════════════════════════════════
-  const massNodes = nodes.filter(n => n.type === 'mass');
-  const primaryMass = massNodes.sort((a,b)=>(Number(b.mass)||0)-(Number(a.mass)||0))[0] || { mass: 2.0 };
-  const m = Number(primaryMass.mass) || 2.0;
+  const massNodes = (system?.massNodes) || nodes.filter(n => n.type === 'mass');
+  const primaryIdx = massNodes.findIndex(n => !n.isJunction && !n.id.startsWith('junc'));
+  const targetIdx = primaryIdx >= 0 ? primaryIdx : 0;
+  const primaryMass = massNodes[targetIdx] || { mass: 2.0 };
+  const m = Number(classroomSolution?.m) || Number(primaryMass.mass) || 2.0;
   const k = Number(classroomSolution?.k_eq) || 150.0;
   const c = Number(classroomSolution?.c_eq) || 2.0;
 
-  const x_val = (simData?.x?.[0]?.[stepIdx]) ?? 0;
-  const v_val = (simData?.v?.[0]?.[stepIdx]) ?? 0;
+  const x_val = (simData?.x?.[targetIdx]?.[stepIdx]) ?? (simData?.x?.[0]?.[stepIdx]) ?? 0;
+  const v_val = (simData?.v?.[targetIdx]?.[stepIdx]) ?? (simData?.v?.[0]?.[stepIdx]) ?? 0;
   const Fd_val = c * v_val;
   const Fs_val = k * x_val;
   const sumF_val = F_val - Fd_val - Fs_val;
