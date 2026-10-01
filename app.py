@@ -501,6 +501,20 @@ def design():
     base.update(fixed_params)
     fixed_params = base
 
+    # Validate constraints — do not allow impossible ranges silently
+    for k, bounds in constraints.items():
+        if isinstance(bounds, dict):
+            lo = float(bounds["min"]) if bounds.get("min") not in (None, '') else None
+            hi = float(bounds["max"]) if bounds.get("max") not in (None, '') else None
+            if lo is not None and hi is not None and lo > hi:
+                return jsonify({"status": "error", "message": f"Impossible constraint range for '{k}': Min ({lo}) cannot exceed Max ({hi})."}), 400
+            if k in ('period', 'stroke') and ((lo is not None and lo <= 0) or (hi is not None and hi <= 0)):
+                return jsonify({"status": "error", "message": f"Impossible constraint for '{k}': Value must be strictly positive (> 0)."}), 400
+            if k in ('max_omega', 'v_max', 'a_max', 'max_omega4') and ((lo is not None and lo < 0) or (hi is not None and hi < 0)):
+                return jsonify({"status": "error", "message": f"Impossible constraint for '{k}': Value cannot be negative (must be >= 0)."}), 400
+            if k == 'rocker_range_deg' and ((lo is not None and lo < 0) or (hi is not None and hi > 360)):
+                return jsonify({"status": "error", "message": f"Impossible constraint for '{k}': Rocker range must be within [0, 360] degrees."}), 400
+
     if not param_ranges:
         if sim_type in ('simple_pendulum', 'compound_pendulum'):
             param_ranges = {'length': {'min': 0.5, 'max': 2.5}}

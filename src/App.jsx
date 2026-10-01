@@ -14,6 +14,7 @@ import {
 import { computeLiveValidation } from './liveValidation';
 import { simulateClient } from './clientSimulation';
 import { checkFeasibility, FEASIBILITY_STATUS } from './core/feasibility.js';
+import { solveClientDesignSweep, validateDesignConstraints } from './core/designSweep.js';
 
 import { Navbar } from './components/Navbar';
 import { MechanismModal } from './components/MechanismModal';
@@ -679,50 +680,71 @@ export default function App() {
   };
 
   const runDesignSweep = async () => {
-    setAnalysisLoading(true);
-    try {
-      const pKeys = SIMULATIONS[simType].sliders.map(s => s.key);
-      const param_ranges = {};
-      const fixed_params = {};
+    const pKeys = SIMULATIONS[simType].sliders.map(s => s.key);
+    const param_ranges = {};
+    const fixed_params = {};
 
-      pKeys.forEach((k, i) => {
-        if (i < 2) {
-          const s = SIMULATIONS[simType].sliders.find(x => x.key === k);
-          param_ranges[k] = { min: s.min, max: s.max };
-        } else {
-          fixed_params[k] = params[k];
-        }
-      });
-
-      const constraints = {};
-      Object.entries(designConstraints).forEach(([key, val]) => {
-        if (val.min !== '' || val.max !== '') {
-          constraints[key] = {};
-          if (val.min !== '') constraints[key].min = parseFloat(val.min);
-          if (val.max !== '') constraints[key].max = parseFloat(val.max);
-        }
-      });
-
-      if (Object.keys(constraints).length === 0) {
-        if (simType === 'simple_pendulum' || simType === 'compound_pendulum') {
-          constraints.period = { min: 1.0, max: 5.0 };
-        } else if (simType === 'slider_crank') {
-          constraints.stroke = { min: 0.05, max: 0.5 };
-        } else if (simType === 'four_bar') {
-          constraints.rocker_range_deg = { min: 30 };
-        }
+    pKeys.forEach((k, i) => {
+      if (i < 2) {
+        const s = SIMULATIONS[simType].sliders.find(x => x.key === k);
+        param_ranges[k] = { min: s.min, max: s.max };
+      } else {
+        fixed_params[k] = params[k];
       }
+    });
 
+    const constraints = {};
+    Object.entries(designConstraints).forEach(([key, val]) => {
+      if (val.min !== '' || val.max !== '') {
+        constraints[key] = {};
+        if (val.min !== '') constraints[key].min = parseFloat(val.min);
+        if (val.max !== '') constraints[key].max = parseFloat(val.max);
+      }
+    });
+
+    // Validate constraints — NEVER allow impossible ranges silently
+    const validation = validateDesignConstraints(simType, constraints, param_ranges, fixed_params);
+    if (!validation.isValid) {
+      const firstErr = Object.values(validation.errors)[0] || 'Impossible constraint range';
+      showToast(`Cannot run sweep: ${firstErr}`, 'error');
+      return;
+    }
+
+    if (Object.keys(constraints).length === 0) {
+      if (simType === 'simple_pendulum' || simType === 'compound_pendulum') {
+        constraints.period = { min: 1.0, max: 5.0 };
+      } else if (simType === 'slider_crank') {
+        constraints.stroke = { min: 0.05, max: 0.5 };
+      } else if (simType === 'four_bar') {
+        constraints.rocker_range_deg = { min: 30 };
+      }
+    }
+
+    setAnalysisLoading(true);
+
+    // 1. Immediately compute ultra-fast client-side grid search (< 10 ms)
+    try {
+      const clientRes = solveClientDesignSweep(simType, constraints, param_ranges, fixed_params, 7);
+      setDesignRes(clientRes);
+    } catch (err) {
+      console.warn('Client design sweep note:', err);
+    }
+
+    // 2. Also query Flask backend if available (with strict 3.5s timeout)
+    try {
       const res = await axios.post(`${API}/design`, {
         sim_type: simType,
         constraints,
         param_ranges,
         fixed_params,
         n_points: 7
-      });
-      setDesignRes(res.data.data);
+      }, { timeout: 3500 });
+      if (res?.data?.data) {
+        setDesignRes(res.data.data);
+      }
     } catch (e) {
-      showToast('Design Sweep Notice: ' + (e.response?.data?.message || e.message), 'error');
+      // Backend offline or timeout: client-side result is already active
+      console.info('Design sweep backend status:', e.message);
     } finally {
       setAnalysisLoading(false);
     }

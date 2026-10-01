@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Line, Scatter } from 'react-chartjs-2';
 import { HelpCard } from '../HelpCards';
 import { FeasibilityPanel } from './FeasibilityPanel';
+import { validateDesignConstraints, getAttainableMetricRanges } from '../core/designSweep.js';
 
 // Light Engineering Chart Options
 const chartOptsLight = (yLabel) => ({
@@ -126,6 +127,85 @@ export const AnalysisModal = ({
   useEffect(() => {
     setLocalParams(params);
   }, [params]);
+
+  // Multi-Dimensional Sweep Parameter Ranges & Feasibility Validation
+  const { attainableRanges, constraintValidation, constraintsConfig } = useMemo(() => {
+    if (!simulations || !simulations[simType]) {
+      return {
+        attainableRanges: {},
+        constraintValidation: { isValid: true, hasErrors: false, errors: {}, warnings: {} },
+        constraintsConfig: []
+      };
+    }
+    const sliders = simulations[simType].sliders || [];
+    const pRanges = {};
+    const fParams = {};
+    sliders.forEach((s, idx) => {
+      if (idx < 2) {
+        pRanges[s.key] = { min: s.min, max: s.max };
+      } else {
+        fParams[s.key] = params[s.key];
+      }
+    });
+
+    const parsedConstraints = {};
+    Object.entries(designConstraints || {}).forEach(([k, val]) => {
+      if (val && (val.min !== '' || val.max !== '')) {
+        parsedConstraints[k] = {};
+        if (val.min !== '' && val.min !== undefined) parsedConstraints[k].min = parseFloat(val.min);
+        if (val.max !== '' && val.max !== undefined) parsedConstraints[k].max = parseFloat(val.max);
+      }
+    });
+
+    const attainable = getAttainableMetricRanges(simType, pRanges, fParams);
+    const valResult = validateDesignConstraints(simType, parsedConstraints, pRanges, fParams);
+
+    let cConfig = [];
+    if (simType === 'simple_pendulum' || simType === 'compound_pendulum') {
+      cConfig = [
+        { key: 'period', label: 'Period T', unit: 's' },
+        { key: 'max_omega', label: 'Max Angular Velocity ω', unit: 'rad/s' },
+      ];
+    } else if (simType === 'slider_crank') {
+      cConfig = [
+        { key: 'stroke', label: 'Stroke', unit: 'm' },
+        { key: 'v_max', label: 'Max Velocity', unit: 'm/s' },
+        { key: 'a_max', label: 'Max Acceleration', unit: 'm/s²' },
+      ];
+    } else if (simType === 'four_bar') {
+      cConfig = [
+        { key: 'rocker_range_deg', label: 'Rocker Range', unit: '°' },
+        { key: 'max_omega4', label: 'Max Rocker ω₄', unit: 'rad/s' },
+      ];
+    }
+
+    return {
+      attainableRanges: attainable,
+      constraintValidation: valResult,
+      constraintsConfig: cConfig
+    };
+  }, [simType, simulations, params, designConstraints]);
+
+  const handleQuickSetAchievable = () => {
+    const updated = {};
+    constraintsConfig.forEach(c => {
+      const att = attainableRanges[c.key];
+      if (att) {
+        const span = att.max - att.min;
+        const low = Math.round((att.min + span * 0.15) * 100) / 100;
+        const high = Math.round((att.max - span * 0.15) * 100) / 100;
+        updated[c.key] = {
+          min: low > 0 ? low : 0,
+          max: high
+        };
+      }
+    });
+    setDesignConstraints(updated);
+  };
+
+  const handleClearConstraints = () => {
+    setDesignConstraints({});
+  };
 
   const handleSliderInput = (key, rawValue) => {
     const val = parseFloat(rawValue);
@@ -771,86 +851,99 @@ export const AnalysisModal = ({
                     <h3 className="panel-title">Multi-Dimensional Parameter Sweep</h3>
                     <p className="panel-subtitle">Filter parameter combinations to find configurations that satisfy your performance and safety limits.</p>
                   </div>
-                  <button type="button" className="btn-action-primary" onClick={onRunDesignSweep} disabled={analysisLoading}>
-                    {analysisLoading ? 'Sweeping Grid...' : '⚡ Run Parameter Sweep'}
-                  </button>
+                  <div className="design-action-buttons">
+                    {Object.keys(designConstraints || {}).some(k => designConstraints[k]?.min || designConstraints[k]?.max) && (
+                      <button
+                        type="button"
+                        className="btn-action-outline"
+                        onClick={handleClearConstraints}
+                        title="Clear all constraint values"
+                      >
+                        Reset Filters
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={`btn-action-primary ${constraintValidation.hasErrors ? 'btn-disabled-warning' : ''}`}
+                      onClick={onRunDesignSweep}
+                      disabled={analysisLoading || constraintValidation.hasErrors}
+                      title={constraintValidation.hasErrors ? 'Resolve impossible constraint ranges before running sweep' : 'Run parameter sweep'}
+                    >
+                      {analysisLoading ? (
+                        'Sweeping Grid...'
+                      ) : constraintValidation.hasErrors ? (
+                        '⚠️ Fix Impossible Ranges'
+                      ) : (
+                        '⚡ Run Parameter Sweep'
+                      )}
+                    </button>
+                  </div>
                 </div>
 
+                {/* Physics Trade-off Alert Banner */}
+                {constraintValidation.warnings?.tradeoff_conflict && (
+                  <div className="constraints-alert-banner trade-off-alert">
+                    <span className="alert-icon">⚡</span>
+                    <div className="alert-text">
+                      <strong>Physical Trade-Off Limit:</strong> {constraintValidation.warnings.tradeoff_conflict}
+                    </div>
+                  </div>
+                )}
+
                 <div className="constraints-editor-box">
-                  <div className="constraints-heading">Output Performance Constraints</div>
+                  <div className="constraints-editor-header">
+                    <div className="constraints-heading">Output Performance Constraints</div>
+                    <button
+                      type="button"
+                      className="btn-link-action"
+                      onClick={handleQuickSetAchievable}
+                      title="Populate with achievable boundary values from this mechanism's parameter space"
+                    >
+                      💡 Fill with Achievable Bounds
+                    </button>
+                  </div>
                   <div className="constraints-grid">
-                    {(simType === 'simple_pendulum' || simType === 'compound_pendulum') && [
-                      { key: 'period', label: 'Period T', unit: 's' },
-                      { key: 'max_omega', label: 'Max Angular Velocity ω', unit: 'rad/s' },
-                    ].map(c => (
-                      <div key={c.key} className="constraint-row">
-                        <span className="constraint-label">{c.label} ({c.unit}):</span>
-                        <input
-                          type="number"
-                          placeholder="Min"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.min ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), min: e.target.value } }))}
-                        />
-                        <span className="constraint-to">to</span>
-                        <input
-                          type="number"
-                          placeholder="Max"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.max ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), max: e.target.value } }))}
-                        />
-                      </div>
-                    ))}
+                    {constraintsConfig.map(c => {
+                      const att = attainableRanges[c.key];
+                      const err = constraintValidation.errors[c.key];
+                      const warn = constraintValidation.warnings[c.key];
+                      const hasErr = Boolean(err);
+                      const hasWarn = Boolean(warn);
 
-                    {simType === 'slider_crank' && [
-                      { key: 'stroke', label: 'Stroke', unit: 'm' },
-                      { key: 'v_max', label: 'Max Velocity', unit: 'm/s' },
-                      { key: 'a_max', label: 'Max Acceleration', unit: 'm/s²' },
-                    ].map(c => (
-                      <div key={c.key} className="constraint-row">
-                        <span className="constraint-label">{c.label} ({c.unit}):</span>
-                        <input
-                          type="number"
-                          placeholder="Min"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.min ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), min: e.target.value } }))}
-                        />
-                        <span className="constraint-to">to</span>
-                        <input
-                          type="number"
-                          placeholder="Max"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.max ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), max: e.target.value } }))}
-                        />
-                      </div>
-                    ))}
-
-                    {simType === 'four_bar' && [
-                      { key: 'rocker_range_deg', label: 'Rocker Range', unit: '°' },
-                      { key: 'max_omega4', label: 'Max Rocker ω₄', unit: 'rad/s' },
-                    ].map(c => (
-                      <div key={c.key} className="constraint-row">
-                        <span className="constraint-label">{c.label} ({c.unit}):</span>
-                        <input
-                          type="number"
-                          placeholder="Min"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.min ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), min: e.target.value } }))}
-                        />
-                        <span className="constraint-to">to</span>
-                        <input
-                          type="number"
-                          placeholder="Max"
-                          className="constraint-input"
-                          value={designConstraints[c.key]?.max ?? ''}
-                          onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), max: e.target.value } }))}
-                        />
-                      </div>
-                    ))}
+                      return (
+                        <div key={c.key} className={`constraint-row-wrapper ${hasErr ? 'has-error' : hasWarn ? 'has-warning' : ''}`}>
+                          <div className="constraint-row">
+                            <div className="constraint-meta">
+                              <span className="constraint-label">{c.label} ({c.unit}):</span>
+                              {att && (
+                                <span className="attainable-range-tag" title="Achievable metric span across this parameter grid">
+                                  Grid Span: {att.min} – {att.max} {c.unit}
+                                </span>
+                              )}
+                            </div>
+                            <div className="constraint-inputs">
+                              <input
+                                type="number"
+                                placeholder={att ? `Min (≥${att.min})` : "Min"}
+                                className={`constraint-input ${hasErr ? 'input-error' : hasWarn ? 'input-warning' : ''}`}
+                                value={designConstraints[c.key]?.min ?? ''}
+                                onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), min: e.target.value } }))}
+                              />
+                              <span className="constraint-to">to</span>
+                              <input
+                                type="number"
+                                placeholder={att ? `Max (≤${att.max})` : "Max"}
+                                className={`constraint-input ${hasErr ? 'input-error' : hasWarn ? 'input-warning' : ''}`}
+                                value={designConstraints[c.key]?.max ?? ''}
+                                onChange={e => setDesignConstraints(d => ({ ...d, [c.key]: { ...(d[c.key] || {}), max: e.target.value } }))}
+                              />
+                            </div>
+                          </div>
+                          {hasErr && <div className="constraint-error-msg">⛔ {err}</div>}
+                          {!hasErr && hasWarn && <div className="constraint-warn-msg">⚠️ {warn}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -864,7 +957,44 @@ export const AnalysisModal = ({
                       </h3>
                     </div>
                     {designRes.ranked_designs?.length === 0 ? (
-                      <div className="no-feasible-warning">No feasible designs found. Try relaxing the constraint limits.</div>
+                      <div className="no-feasible-card">
+                        <div className="no-feasible-icon">🚫</div>
+                        <h4 className="no-feasible-title">0 Feasible Configurations Found</h4>
+                        <p className="no-feasible-text">
+                          No parameter combinations in this grid satisfied all chosen performance bounds.
+                        </p>
+                        <div className="attainable-summary-table">
+                          <div className="summary-title">Grid Achievable Envelope:</div>
+                          <div className="summary-chips">
+                            {constraintsConfig.map(c => {
+                              const att = attainableRanges[c.key];
+                              if (!att) return null;
+                              return (
+                                <div key={c.key} className="summary-chip">
+                                  <span className="chip-label">{c.label}:</span>
+                                  <span className="chip-val">{att.min} – {att.max} {c.unit}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="no-feasible-actions">
+                          <button
+                            type="button"
+                            className="btn-quick-relax"
+                            onClick={handleQuickSetAchievable}
+                          >
+                            💡 Quick-Set to Achievable Bounds
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-action-outline"
+                            onClick={handleClearConstraints}
+                          >
+                            Reset All Filters
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="ranked-list">
                         {designRes.ranked_designs?.map((d, i) => (

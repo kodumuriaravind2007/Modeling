@@ -21,6 +21,12 @@ import {
   solveClassroomProblem
 } from '../src/core/smdSolver.js';
 
+import {
+  solveClientDesignSweep,
+  validateDesignConstraints,
+  getAttainableMetricRanges
+} from '../src/core/designSweep.js';
+
 console.log('====================================================');
 console.log('RUNNING AUTOMATED JS VALIDATION & BENCHMARK SUITE');
 console.log('====================================================\n');
@@ -504,6 +510,65 @@ const modalCoupled = solveGraphModal(sysCoupled.M, sysCoupled.C, sysCoupled.K);
 // omega_n1 = sqrt(21.9224) = 4.6821 rad/s, omega_n2 = sqrt(228.0776) = 15.1022 rad/s
 assert(Math.abs(modalCoupled.frequenciesRad[0] - 4.6821) < 0.01, `Coupled 2-DOF Mode 1 = ${modalCoupled.frequenciesRad[0].toFixed(3)} rad/s matches analytical 4.682 rad/s`);
 assert(Math.abs(modalCoupled.frequenciesRad[1] - 15.1022) < 0.01, `Coupled 2-DOF Mode 2 = ${modalCoupled.frequenciesRad[1].toFixed(3)} rad/s matches analytical 15.102 rad/s`);
+
+// -----------------------------------------------------------------
+// 7. MULTI-DIMENSIONAL DESIGN SWEEP & PHYSICAL CONSTRAINT VALIDATION
+// -----------------------------------------------------------------
+console.log('\n--- 7. Testing Multi-Dimensional Design Sweep & Constraint Validation ---');
+
+// Test 7.1: Single-variable mathematical impossibility (Min > Max)
+const vMinMax = validateDesignConstraints('simple_pendulum', {
+  period: { min: 7.0, max: 4.0 }
+});
+assert(vMinMax.hasErrors === true, 'Validation catches Min > Max (7.0 > 4.0)');
+assert(vMinMax.errors.period.includes('cannot be greater than Max'), 'Error message describes Min > Max contradiction');
+
+// Test 7.2: Physical limit violations (Negative/Zero period)
+const vNegPeriod = validateDesignConstraints('simple_pendulum', {
+  period: { min: -1.0, max: 2.0 }
+});
+assert(vNegPeriod.hasErrors === true, 'Validation catches negative period constraint');
+
+// Test 7.3: Geometric limits (Rocker range > 360°)
+const vRockerOver = validateDesignConstraints('four_bar', {
+  rocker_range_deg: { max: 420.0 }
+});
+assert(vRockerOver.hasErrors === true, 'Validation catches Rocker range > 360°');
+
+// Test 7.4: Grid attainable metric span calculation
+const pRangesPendulum = {
+  length: { min: 0.2, max: 4.0 },
+  mass: { min: 0.5, max: 3.0 }
+};
+const fParamsPendulum = { gravity: 9.81, theta0: 30.0, omega0: 0.0 };
+const attPendulum = getAttainableMetricRanges('simple_pendulum', pRangesPendulum, fParamsPendulum);
+assert(attPendulum.period !== undefined, 'Attainable metric ranges computed for simple pendulum');
+assert(attPendulum.period.min >= 0.85 && attPendulum.period.min <= 0.95, `Period min = ${attPendulum.period.min} s matches L=0.2m`);
+assert(attPendulum.period.max >= 4.0 && attPendulum.period.max <= 4.2, `Period max = ${attPendulum.period.max} s matches L=4.0m`);
+
+// Test 7.5: Mutual Physical Trade-Off Conflict (T >= 4.0 and omega >= 3.0)
+const vTradeoff = validateDesignConstraints(
+  'simple_pendulum',
+  { period: { min: 4.0 }, max_omega: { min: 3.0 } },
+  pRangesPendulum,
+  fParamsPendulum
+);
+assert(Boolean(vTradeoff.warnings.tradeoff_conflict), 'Validation catches energy conservation trade-off conflict between T and omega');
+assert(vTradeoff.warnings.tradeoff_conflict.includes('Physical Trade-off Conflict'), 'Trade-off warning explains coupling');
+
+// Test 7.6: Fast Client-Side Sweep Execution
+const clientSweepRes = solveClientDesignSweep(
+  'simple_pendulum',
+  { period: { min: 1.5, max: 2.5 } },
+  { length: { min: 0.5, max: 2.0 }, mass: { min: 0.5, max: 2.0 } },
+  { gravity: 9.81, theta0: 30.0, omega0: 0.0 },
+  5
+);
+assert(clientSweepRes.total_count === 25, `Client sweep evaluated exactly 5x5 = 25 points (got ${clientSweepRes.total_count})`);
+assert(clientSweepRes.feasible_count > 0, `Client sweep identified feasible configurations (${clientSweepRes.feasible_count} found)`);
+assert(clientSweepRes.ranked_designs.length === clientSweepRes.feasible_count, 'Ranked designs list matches feasible count');
+assert(clientSweepRes.heatmap_data !== null, 'Heatmap data generated for 2D visualization');
+assert(clientSweepRes.heatmap_data.pass_grid.length === 5, 'Heatmap grid dimensions match n_points');
 
 console.log('\n====================================================');
 console.log(`SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED SUCCESSFULLY!`);
