@@ -722,32 +722,42 @@ export default function App() {
 
     setAnalysisLoading(true);
 
-    // 1. Immediately compute ultra-fast client-side grid search (< 10 ms)
+    // 1. Immediately compute ultra-fast client-side grid search (< 5 ms)
+    let clientSolved = false;
     try {
       const clientRes = solveClientDesignSweep(simType, constraints, param_ranges, fixed_params, 7);
-      setDesignRes(clientRes);
+      if (clientRes) {
+        setDesignRes(clientRes);
+        clientSolved = true;
+      }
     } catch (err) {
       console.warn('Client design sweep note:', err);
     }
 
-    // 2. Also query Flask backend if available (with strict 3.5s timeout)
-    try {
-      const res = await axios.post(`${API}/design`, {
-        sim_type: simType,
-        constraints,
-        param_ranges,
-        fixed_params,
-        n_points: 7
-      }, { timeout: 3500 });
+    // Stop loading indicator immediately so the user experiences zero delay
+    if (clientSolved) {
+      setAnalysisLoading(false);
+    }
+
+    // 2. Asynchronously query backend in the background without blocking the UI
+    axios.post(`${API}/design`, {
+      sim_type: simType,
+      constraints,
+      param_ranges,
+      fixed_params,
+      n_points: 7
+    }, { timeout: 3000 })
+    .then((res) => {
       if (res?.data?.data) {
         setDesignRes(res.data.data);
       }
-    } catch (e) {
-      // Backend offline or timeout: client-side result is already active
+    })
+    .catch((e) => {
       console.info('Design sweep backend status:', e.message);
-    } finally {
+    })
+    .finally(() => {
       setAnalysisLoading(false);
-    }
+    });
   };
 
   const runSensitivity = async () => {

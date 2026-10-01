@@ -206,13 +206,15 @@ export function validateDesignConstraints(simType, designConstraints = {}, param
       }
     }
 
-    // 5. Grid attainable reachability check
+    // 5. Grid attainable reachability check — NEVER allow impossible ranges silently!
     const att = attainable[key];
     if (att) {
       if (minNum !== null && minNum > att.max) {
-        warnings[key] = `Impossible in grid: Min (${minNum} ${att.unit}) exceeds maximum achievable ${att.label} (${att.max} ${att.unit}) in this parameter space.`;
+        errors[key] = `Impossible range: Min (${minNum} ${att.unit}) exceeds maximum achievable ${att.label} (${att.max} ${att.unit}) in this parameter space.`;
+        hasErrors = true;
       } else if (maxNum !== null && maxNum < att.min) {
-        warnings[key] = `Impossible in grid: Max (${maxNum} ${att.unit}) is below minimum achievable ${att.label} (${att.min} ${att.unit}) in this parameter space.`;
+        errors[key] = `Impossible range: Max (${maxNum} ${att.unit}) is below minimum achievable ${att.label} (${att.min} ${att.unit}) in this parameter space.`;
+        hasErrors = true;
       }
     }
   }
@@ -236,7 +238,10 @@ export function validateDesignConstraints(simType, designConstraints = {}, param
       const requestedProduct = pMin * wMin;
       // Allow 15% margin for numerical/non-small-angle effects
       if (requestedProduct > theoreticalProduct * 1.15) {
-        warnings['tradeoff_conflict'] = `Physical Trade-off Conflict: Period T and Angular Velocity ω are inversely coupled by conservation of energy (T · ω ≈ ${theoreticalProduct.toFixed(2)} at θ₀=${th0Deg}°). Requiring T ≥ ${pMin} s and ω ≥ ${wMin} rad/s (product = ${requestedProduct.toFixed(2)}) is physically impossible in this system.`;
+        const conflictMsg = `Physical Trade-off Conflict: Period T and Angular Velocity ω are inversely coupled by conservation of energy (T · ω ≈ ${theoreticalProduct.toFixed(2)} at θ₀=${th0Deg}°). Requiring T ≥ ${pMin} s and ω ≥ ${wMin} rad/s (product = ${requestedProduct.toFixed(2)}) is physically impossible in this system.`;
+        warnings['tradeoff_conflict'] = conflictMsg;
+        errors['tradeoff_conflict'] = conflictMsg;
+        hasErrors = true;
       }
     }
   }

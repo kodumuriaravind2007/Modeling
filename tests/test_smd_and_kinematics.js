@@ -570,6 +570,17 @@ assert(clientSweepRes.ranked_designs.length === clientSweepRes.feasible_count, '
 assert(clientSweepRes.heatmap_data !== null, 'Heatmap data generated for 2D visualization');
 assert(clientSweepRes.heatmap_data.pass_grid.length === 5, 'Heatmap grid dimensions match n_points');
 
+// Test 7.7: User Screenshot Case (omega 20 to 30 is physically impossible)
+const vUserCase = validateDesignConstraints(
+  'simple_pendulum',
+  { period: { min: 1, max: 3 }, max_omega: { min: 20, max: 30 } },
+  pRangesPendulum,
+  fParamsPendulum
+);
+assert(vUserCase.hasErrors === true, 'Validation catches omega [20, 30] as impossible range');
+assert(vUserCase.errors.max_omega.includes('Impossible range'), 'Error message clearly flags unattainable angular velocity');
+assert(vUserCase.isValid === false, 'Form is marked invalid to disable the sweep button');
+
 console.log('\n====================================================');
 console.log(`SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED SUCCESSFULLY!`);
 console.log('====================================================\n');
