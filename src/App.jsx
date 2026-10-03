@@ -460,10 +460,45 @@ export default function App() {
   }, [drawCanvas]);
 
   const handleBobDragRelease = useCallback((releasedAngleDeg) => {
+    const currentType = simTypeRef.current;
     const nextParams = { ...paramsRef.current, theta0: releasedAngleDeg, omega0: 0 };
-    handleUpdateParams(nextParams);
-    runSimulation(simTypeRef.current, nextParams, true);
-  }, [handleUpdateParams, runSimulation]);
+    if (debounceSimRef.current) {
+      clearTimeout(debounceSimRef.current);
+      debounceSimRef.current = null;
+    }
+    paramsRef.current = nextParams;
+    setParams(nextParams);
+
+    // Compute ultra-fast client simulation instantly with zero hitch
+    const clientData = simulateClient(currentType, nextParams);
+    simDataRef.current = clientData;
+    setSimData(clientData);
+
+    const liveVal = computeLiveValidation(currentType, nextParams, clientData);
+    setValidation(liveVal);
+
+    const feas = checkFeasibility(currentType, nextParams);
+    const canPlay = (feas.status !== FEASIBILITY_STATUS.IMPOSSIBLE);
+
+    // Immediately start smooth playback from frame 0
+    frameRef.current = 0;
+    setAnimIdx(0);
+    setIsPlaying(canPlay);
+    playingRef.current = canPlay;
+    drawCanvas(0, nextParams, clientData);
+
+    // Silent background verification without setting loading state or restarting the rAF loop
+    if (backendOnline) {
+      debounceSimRef.current = setTimeout(async () => {
+        try {
+          const res = await axios.post(`${API}/simulate`, { sim_type: currentType, params: nextParams }, { timeout: 6000 });
+          if (res.data?.data?.time?.length > 0) {
+            simDataRef.current = res.data.data;
+          }
+        } catch (_) {}
+      }, 500);
+    }
+  }, [backendOnline, drawCanvas]);
 
   const initialMountedRef = useRef(false);
 
@@ -586,13 +621,10 @@ export default function App() {
       return;
     }
 
-    const len = simData?.time?.length || simData?.crank_angle_deg?.length || 1;
     let localIdx = frameRef.current;
     let lastTimestamp = null;
     let lastReactUpdate = 0;
     let stepAccumulator = 0;
-
-    const dt = simData?.params?.dt || params?.dt || (simType === 'slider_crank' ? 0.005 : simType === 'four_bar' ? 0.005 : 0.01);
 
     let cachedFeasParams = null;
     let cachedFeasType = null;
@@ -612,6 +644,11 @@ export default function App() {
         playingRef.current = false;
         return;
       }
+
+      const curData = simDataRef.current;
+      const curParams = paramsRef.current;
+      const len = curData?.time?.length || curData?.crank_angle_deg?.length || 1;
+      const dt = curData?.params?.dt || curParams?.dt || (simTypeRef.current === 'slider_crank' ? 0.005 : simTypeRef.current === 'four_bar' ? 0.005 : 0.01);
 
       if (lastTimestamp === null) {
         lastTimestamp = timestamp;
@@ -651,7 +688,7 @@ export default function App() {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       setAnimIdx(frameRef.current);
     };
-  }, [isPlaying, simData, animSpeed, viewMode, drawCanvas, simType, params]);
+  }, [isPlaying, animSpeed, viewMode, drawCanvas]);
 
   // Redraw when scrubber is moved while paused or params changed
   useEffect(() => {

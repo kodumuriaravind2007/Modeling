@@ -301,6 +301,7 @@ export const SMDBuilder = ({ onClose }) => {
   const currentPosMapRef = useRef(new Map());
   const mousePosRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
+  const edgeHitTargetsRef = useRef([]);
 
   // Dragging state on Canvas
   const [_draggingNodeId, setDraggingNodeId] = useState(null);
@@ -910,8 +911,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     // Check hit on nodes using their currently rendered visual position
     for (const node of nodes) {
       const isMass = node.type === 'mass';
-      const nw = isMass ? 72 : 36;
-      const nh = isMass ? 50 : 80;
+      const isJunc = node.id.startsWith('junc') || Number(node.mass) <= 0.1;
+      const nw = isJunc ? 24 : (isMass ? 84 : 36);
+      const nh = isJunc ? 50 : (isMass ? 56 : 96);
       const pos = currentPosMapRef.current.get(node.id) || node;
       if (mx >= pos.x - nw / 2 && mx <= pos.x + nw / 2 && my >= pos.y - nh / 2 && my <= pos.y + nh / 2) {
         draggingNodeIdRef.current = node.id;
@@ -919,6 +921,34 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         dragOffsetRef.current = { x: mx - node.x, y: my - node.y };
         setSelectedId(node.id);
         return;
+      }
+    }
+
+    // Check hit on edges (badges or spring/damper/force geometry)
+    for (const target of (edgeHitTargetsRef.current || [])) {
+      if (target.badgeBox) {
+        const { left, top, right, bottom } = target.badgeBox;
+        if (mx >= left - 4 && mx <= right + 4 && my >= top - 4 && my <= bottom + 4) {
+          setSelectedId(target.id);
+          return;
+        }
+      }
+      if (target.line) {
+        const { x1, y1, x2, y2 } = target.line;
+        const minX = Math.min(x1, x2) - 8;
+        const maxX = Math.max(x1, x2) + 8;
+        const minY = Math.min(y1, y2) - 12;
+        const maxY = Math.max(y1, y2) + 12;
+        if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
+          const lineLen = Math.hypot(x2 - x1, y2 - y1);
+          if (lineLen > 0) {
+            const dist = Math.abs((y2 - y1) * mx - (x2 - x1) * my + x2 * y1 - y2 * x1) / lineLen;
+            if (dist <= 12) {
+              setSelectedId(target.id);
+              return;
+            }
+          }
+        }
       }
     }
   };
@@ -971,8 +1001,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     let hovered = null;
     for (const node of nodes) {
       const isMass = node.type === 'mass';
-      const nw = isMass ? 84 : 36;
-      const nh = isMass ? 56 : 96;
+      const isJunc = node.id.startsWith('junc') || Number(node.mass) <= 0.1;
+      const nw = isJunc ? 24 : (isMass ? 84 : 36);
+      const nh = isJunc ? 50 : (isMass ? 56 : 96);
       const pos = currentPosMapRef.current.get(node.id) || node;
       if (mx >= pos.x - nw / 2 && mx <= pos.x + nw / 2 && my >= pos.y - nh / 2 && my <= pos.y + nh / 2) {
         hovered = node.id;
@@ -980,6 +1011,38 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
       }
     }
     setHoveredNodeId(hovered);
+
+    // Check if hovering over any edge badge or wire for pointer cursor
+    let isHoveringEdge = false;
+    for (const target of (edgeHitTargetsRef.current || [])) {
+      if (target.badgeBox) {
+        const { left, top, right, bottom } = target.badgeBox;
+        if (mx >= left - 2 && mx <= right + 2 && my >= top - 2 && my <= bottom + 2) {
+          isHoveringEdge = true;
+          break;
+        }
+      }
+      if (target.line) {
+        const { x1, y1, x2, y2 } = target.line;
+        if (mx >= Math.min(x1, x2) && mx <= Math.max(x1, x2) && my >= Math.min(y1, y2) - 10 && my <= Math.max(y1, y2) + 10) {
+          const lineLen = Math.hypot(x2 - x1, y2 - y1);
+          if (lineLen > 0 && Math.abs((y2 - y1) * mx - (x2 - x1) * my + x2 * y1 - y2 * x1) / lineLen <= 10) {
+            isHoveringEdge = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (draggingNodeIdRef.current) {
+      canvas.style.cursor = 'grabbing';
+    } else if (hovered) {
+      canvas.style.cursor = wiringTool ? 'crosshair' : 'grab';
+    } else if (isHoveringEdge) {
+      canvas.style.cursor = 'pointer';
+    } else {
+      canvas.style.cursor = wiringTool ? 'crosshair' : 'default';
+    }
 
     if (!draggingNodeIdRef.current) return;
     hasDraggedRef.current = true;
@@ -1157,6 +1220,11 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
       });
       currentPosMapRef.current = currentPosMap;
 
+      // Reset hit targets array for interactive edge clicking and hover
+      edgeHitTargetsRef.current = [];
+
+      const edgeRenderList = [];
+
       // 2. Draw Connecting Edges (Springs, Dampers, Forces)
       edges.forEach(edge => {
         const p1 = currentPosMap.get(edge.from);
@@ -1174,8 +1242,8 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         const offset = Math.max(-20, Math.min(20, edge.yOffset || 0));
         const isJunc1 = n1?.id?.startsWith('junc') || Number(n1?.mass) <= 0.1;
         const isJunc2 = n2?.id?.startsWith('junc') || Number(n2?.mass) <= 0.1;
-        const mw1 = isJunc1 ? 42 : 84;
-        const mw2 = isJunc2 ? 42 : 84;
+        const mw1 = isJunc1 ? 10 : (isWall1 ? 32 : 84);
+        const mw2 = isJunc2 ? 10 : (isWall2 ? 32 : 84);
 
         let startX, endX;
         if (isWall1) {
@@ -1192,20 +1260,100 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         const startY = p1.y + offset;
         const endY = p2.y + offset;
 
-        const springLabel = edge.label || `${edge.k} N/m`;
-        const damperLabel = edge.label || `${edge.c} N·s/m`;
-        const forceLabel = edge.label || `F(t) = ${edge.F0} N`;
+        const label = edge.label || (edge.type === 'spring' ? `${edge.k} N/m` : edge.type === 'damper' ? `${edge.c} N·s/m` : `F(t) = ${edge.F0} N`);
 
-        if (edge.type === 'spring') {
-          drawSpring(ctx, startX, startY, endX, endY, isSelected ? '#2563EB' : '#3B82F6', springLabel);
-        } else if (edge.type === 'damper') {
-          drawDamper(ctx, startX, startY, endX, endY, isSelected ? '#D97706' : '#F59E0B', damperLabel);
-        } else if (edge.type === 'force') {
-          drawForceArrow(ctx, p2.x, p2.y, isSelected ? '#DC2626' : '#EF4444', forceLabel);
+        if (edge.type === 'force') {
+          const badgeBox = drawForceArrow(ctx, p2.x, p2.y, isSelected ? '#DC2626' : '#EF4444', label);
+          edgeHitTargetsRef.current.push({
+            id: edge.id,
+            type: 'force',
+            badgeBox,
+            line: { x1: p2.x - 30, y1: p2.y - 36, x2: p2.x + 16, y2: p2.y - 36 }
+          });
+        } else {
+          // Draw selection glow halo if selected
+          if (isSelected) {
+            ctx.save();
+            ctx.strokeStyle = edge.type === 'spring' ? 'rgba(37, 99, 235, 0.28)' : 'rgba(217, 119, 6, 0.28)';
+            ctx.lineWidth = 14;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Draw spring/damper without internal label (badges are drawn in second pass to prevent overlapping)
+          if (edge.type === 'spring') {
+            drawSpring(ctx, startX, startY, endX, endY, isSelected ? '#2563EB' : '#3B82F6', null);
+          } else if (edge.type === 'damper') {
+            drawDamper(ctx, startX, startY, endX, endY, isSelected ? '#D97706' : '#F59E0B', null);
+          }
+
+          edgeRenderList.push({
+            edge,
+            isSelected,
+            startX,
+            startY,
+            endX,
+            endY,
+            offset,
+            label
+          });
         }
       });
 
-      // 3. Draw Nodes (Wall Anchors and Masses)
+      // Second pass: Draw non-overlapping badges and register hit boxes
+      edgeRenderList.forEach((item) => {
+        const { edge, isSelected, startX, startY, endX, endY, offset, label } = item;
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+
+        let badgeX = midX;
+        let badgeY = midY;
+
+        // Intelligent placement to avoid collisions
+        if (offset < -6) {
+          // Top element: place badge above
+          badgeY = midY - 18;
+          badgeX = midX;
+        } else if (offset > 6) {
+          // Bottom element: place badge below
+          badgeY = midY + 18;
+          badgeX = midX;
+        } else {
+          // Middle element (offset ≈ 0): check for siblings in same horizontal span
+          const siblings = edgeRenderList.filter(s => s !== item && Math.max(minX, Math.min(s.startX, s.endX)) < Math.min(maxX, Math.max(s.startX, s.endX)));
+          const hasAbove = siblings.some(s => s.offset < -6);
+          const hasBelow = siblings.some(s => s.offset > 6);
+
+          if (hasAbove && !hasBelow) {
+            badgeY = midY + 18;
+          } else if (!hasAbove && hasBelow) {
+            badgeY = midY - 18;
+          } else if (hasAbove && hasBelow) {
+            // Sandwiched between top and bottom elements: shift X to 72% of span to clear damper cylinder
+            badgeX = minX + (maxX - minX) * 0.72;
+            badgeY = midY;
+          } else {
+            badgeY = midY - 18;
+          }
+        }
+
+        const badgeBox = drawEdgeBadge(ctx, badgeX, badgeY, label, edge.type, isSelected);
+
+        edgeHitTargetsRef.current.push({
+          id: edge.id,
+          type: edge.type,
+          badgeBox,
+          line: { x1: minX, y1: startY, x2: maxX, y2: endY }
+        });
+      });
+
+      // 3. Draw Nodes (Wall Anchors and Masses / Couplers)
       nodes.forEach(node => {
         const pos = currentPosMap.get(node.id);
         const isSelected = selectedId === node.id;
@@ -1247,66 +1395,182 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           });
 
           ctx.fillStyle = '#334155';
-          ctx.font = '700 11px system-ui';
+          ctx.font = '700 11px var(--font-sans, system-ui)';
           ctx.textAlign = 'center';
           ctx.fillText(node.label || (isRightWall ? 'Right Base' : 'Fixed Base'), wx, wy + 64);
         } else if (node.type === 'mass') {
-          // Vibrating Mass Block
           const mx = pos.x;
           const my = pos.y;
           const isJunction = node.id.startsWith('junc') || (Number(node.mass) <= 0.1);
-          const mw = isJunction ? 42 : 84;
-          const mh = isJunction ? 26 : 56;
 
-          // Shadow
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-          ctx.fillRect(mx - mw / 2 + 4, my - mh / 2 + 6, mw, mh);
+          if (isJunction) {
+            // Sleek Authentic CAD Mechanical Coupler / Spreader Link
+            const connectedEdges = edges.filter(e => e.from === node.id || e.to === node.id);
+            const hasMultipleOffsets = connectedEdges.some(e => Math.abs(e.yOffset || 0) > 4);
 
-          // Block Body
-          ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
-          ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
-          ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#1E40AF';
-          ctx.lineWidth = isSelected || isWireSrc ? 2.8 : 2;
-          ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
+            if (hasMultipleOffsets) {
+              // Problem 3 style: Vertical Equalizer Spreader Bar
+              const barW = 8;
+              const barH = 46;
 
-          // Top header band
-          const headerH = isJunction ? 11 : 18;
-          ctx.fillStyle = isSelected ? '#2563EB' : '#1E40AF';
-          ctx.fillRect(mx - mw / 2, my - mh / 2, mw, headerH);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = isJunction ? '700 8.5px monospace' : '700 10px monospace';
-          ctx.textAlign = 'center';
-          const headerLabel = node.label || (isJunction ? 'J₁' : `m = ${node.mass || 1.0} kg`);
-          ctx.fillText(headerLabel, mx, my - mh / 2 + (isJunction ? 8.5 : 13));
+              // Selection halo
+              if (isSelected) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.roundRect(mx - barW / 2 - 2, my - barH / 2 - 2, barW + 4, barH + 4, 6);
+                ctx.stroke();
+                ctx.restore();
+              }
 
-          // Live Telemetry inside Block
-          if (!isJunction) {
+              // Brushed aluminum bar body
+              const grad = ctx.createLinearGradient(mx, my - barH / 2, mx, my + barH / 2);
+              grad.addColorStop(0, '#F8FAFC');
+              grad.addColorStop(0.5, '#E2E8F0');
+              grad.addColorStop(1, '#CBD5E1');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.roundRect(mx - barW / 2, my - barH / 2, barW, barH, 4);
+              ctx.fill();
+
+              // Bar border
+              ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#64748B';
+              ctx.lineWidth = isSelected ? 2.2 : 1.5;
+              ctx.stroke();
+
+              // Center pivot pin rivet
+              ctx.fillStyle = '#1E293B';
+              ctx.beginPath();
+              ctx.arc(mx, my, 2.5, 0, 2 * Math.PI);
+              ctx.fill();
+
+              // Terminal connection dots at ports [-18, 0, 18]
+              [-18, 0, 18].forEach(offY => {
+                ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
+                ctx.beginPath();
+                ctx.arc(mx, my + offY, 3.2, 0, 2 * Math.PI);
+                ctx.fill();
+              });
+
+              // Sleek floating pill badge above spreader
+              ctx.save();
+              ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
+              ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
+              ctx.shadowBlur = 4;
+              ctx.shadowOffsetY = 1;
+              ctx.beginPath();
+              ctx.roundRect(mx - 22, my - barH / 2 - 18, 44, 16, 8);
+              ctx.fill();
+              ctx.shadowColor = 'transparent';
+              ctx.strokeStyle = isSelected ? '#2563EB' : '#94A3B8';
+              ctx.lineWidth = isSelected ? 1.5 : 1.0;
+              ctx.stroke();
+
+              ctx.fillStyle = isSelected ? '#1D4ED8' : '#334155';
+              ctx.font = '700 9.5px var(--font-sans, system-ui)';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('J₁ (Link)', mx, my - barH / 2 - 10);
+              ctx.restore();
+            } else {
+              // Problem 2 style: Circular Chrome Joint Pin
+              const r = 9;
+
+              if (isSelected) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.arc(mx, my, r + 2, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.restore();
+              }
+
+              // Radial chrome gradient
+              const grad = ctx.createRadialGradient(mx - 2, my - 2, 1, mx, my, r);
+              grad.addColorStop(0, '#FFFFFF');
+              grad.addColorStop(0.6, '#E2E8F0');
+              grad.addColorStop(1, '#94A3B8');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.arc(mx, my, r, 0, 2 * Math.PI);
+              ctx.fill();
+
+              ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#475569';
+              ctx.lineWidth = isSelected ? 2.4 : 1.6;
+              ctx.stroke();
+
+              // Center pin
+              ctx.fillStyle = '#1E293B';
+              ctx.beginPath();
+              ctx.arc(mx, my, 3, 0, 2 * Math.PI);
+              ctx.fill();
+
+              // Sleek floating pill badge above joint
+              ctx.save();
+              ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
+              ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
+              ctx.shadowBlur = 4;
+              ctx.beginPath();
+              ctx.roundRect(mx - 18, my - r - 18, 36, 16, 8);
+              ctx.fill();
+              ctx.shadowColor = 'transparent';
+              ctx.strokeStyle = isSelected ? '#2563EB' : '#94A3B8';
+              ctx.lineWidth = isSelected ? 1.5 : 1.0;
+              ctx.stroke();
+
+              ctx.fillStyle = isSelected ? '#1D4ED8' : '#334155';
+              ctx.font = '700 9.5px var(--font-sans, system-ui)';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('J₁', mx, my - r - 10);
+              ctx.restore();
+            }
+          } else {
+            // Real Oscillating Mass Block
+            const mw = 84;
+            const mh = 56;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+            ctx.fillRect(mx - mw / 2 + 4, my - mh / 2 + 6, mw, mh);
+
+            // Block Body
+            ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
+            ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
+            ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#1E40AF';
+            ctx.lineWidth = isSelected || isWireSrc ? 2.8 : 2;
+            ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
+
+            // Top header band
+            ctx.fillStyle = isSelected ? '#2563EB' : '#1E40AF';
+            ctx.fillRect(mx - mw / 2, my - mh / 2, mw, 18);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '700 10.5px var(--font-sans, system-ui)';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.label || `m = ${node.mass || 1.0} kg`, mx, my - mh / 2 + 13);
+
+            // Live Telemetry inside Block
             const massIdx = system.massIndexMap.get(node.id);
             const curDisp = (massIdx !== undefined && simData.x[massIdx]) ? simData.x[massIdx][stepIdx] : 0;
             ctx.fillStyle = '#0F172A';
-            ctx.font = '700 13px monospace';
+            ctx.font = '700 13px var(--font-mono, monospace)';
             ctx.fillText(`x = ${(curDisp * 100).toFixed(1)} cm`, mx, my + (node.label ? 6 : 14));
             if (node.label) {
               ctx.fillStyle = '#64748B';
-              ctx.font = '600 10px monospace';
+              ctx.font = '600 10px var(--font-sans, system-ui)';
               ctx.fillText(`${(node.mass || 1.0).toFixed(1)} kg`, mx, my + 20);
             }
-          } else {
-            ctx.fillStyle = '#475569';
-            ctx.font = '600 9px monospace';
-            ctx.fillText('Junction', mx, my + 8);
-          }
 
-          // Connection Terminals
-          [-18, 0, 18].forEach(offY => {
-            if (isJunction && Math.abs(offY) > 0) return;
-            ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
-            ctx.beginPath(); ctx.arc(mx - mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
-            ctx.beginPath(); ctx.arc(mx + mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
-          });
+            // Connection Terminals
+            [-18, 0, 18].forEach(offY => {
+              ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
+              ctx.beginPath(); ctx.arc(mx - mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
+              ctx.beginPath(); ctx.arc(mx + mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
+            });
 
-          // Rollers / Bearings beneath mass (only for real masses, not lightweight junctions)
-          if (!isJunction) {
+            // Rollers / Bearings beneath mass
             ctx.fillStyle = '#475569';
             ctx.beginPath(); ctx.arc(mx - 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
             ctx.beginPath(); ctx.arc(mx + 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
@@ -1476,156 +1740,196 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           </button>
         </div>
 
-        {/* Toolbar: Presets & Component Library Palette */}
-        <div className="smd-toolbar-deck">
-          {/* Canvas View Mode Toggle: Physical Mechanism vs Simulink Block Diagram */}
-          <div className="smd-view-toggle-group">
-            <button
-              type="button"
-              className={`smd-view-btn ${canvasMode === 'simulink' ? 'active' : ''}`}
-              onClick={() => setCanvasMode('simulink')}
-              title="Show MathWorks Simulink Block Diagram: 1/s integrators, 1/m, k, c gains, summing junction, scope"
-            >
-              🎛️ Simulink Blocks
-            </button>
-            <button
-              type="button"
-              className={`smd-view-btn ${canvasMode === 'physical' ? 'active' : ''}`}
-              onClick={() => setCanvasMode('physical')}
-              title="Show physical schematic: mass blocks, spring coils, dashpots, and floor"
-            >
-              🧱 Physical Mechanism
-            </button>
-            <button
-              type="button"
-              className="smd-view-btn"
-              style={{ background: '#0F172A', color: '#38BDF8', border: '1px solid #0284C7', fontWeight: 700 }}
-              onClick={() => setShowScopeModal(true)}
-              title="Open full interactive Simulink Oscilloscope window"
-            >
-              📈 Scope Window
-            </button>
-          </div>
-
-          <div className="smd-toolbar-divider"></div>
-
-          {/* Custom Model & Preset Buttons */}
-          <div className="smd-preset-group">
-            <button
-              type="button"
-              className={`smd-blank-btn ${activePreset === 'custom' ? 'active-custom' : ''}`}
-              onClick={handleNewCustomModel}
-              title="Start a custom system to build and arrange manually"
-            >
-              ✨ Build Custom
-            </button>
-            <button
-              type="button"
-              className="smd-tool-btn danger"
-              onClick={handleClearAll}
-              title="Clear all components to start from an empty canvas"
-            >
-              🧹 Clear All
-            </button>
-            <div className="smd-toolbar-divider" style={{ height: '18px', margin: '0 4px' }}></div>
-            <span className="smd-group-label">Templates:</span>
-            {Object.entries(PRESETS).map(([key, p]) => (
+        {/* Two-Deck CAD Workstation Toolbar */}
+        <div className="smd-toolbar-deck-container">
+          {/* Deck Row 1: View Modes, Problem Presets & Custom/Clear */}
+          <div className="smd-deck-row smd-deck-row-top">
+            {/* View Mode Switcher */}
+            <div className="smd-view-toggle-group">
               <button
-                key={key}
                 type="button"
-                className={`smd-preset-btn ${activePreset === key ? 'active' : ''}`}
-                onClick={() => loadPreset(key)}
-                title={p.name}
+                className={`smd-view-btn ${canvasMode === 'simulink' ? 'active' : ''}`}
+                onClick={() => setCanvasMode('simulink')}
+                title="Show MathWorks Simulink Block Diagram: 1/s integrators, 1/m, k, c gains, summing junction, scope"
               >
-                {p.shortLabel || p.name}
+                🎛️ Simulink Blocks
               </button>
-            ))}
+              <button
+                type="button"
+                className={`smd-view-btn ${canvasMode === 'physical' ? 'active' : ''}`}
+                onClick={() => setCanvasMode('physical')}
+                title="Show physical schematic: mass blocks, spring coils, dashpots, and floor"
+              >
+                🧱 Physical Mechanism
+              </button>
+              <button
+                type="button"
+                className="smd-view-btn"
+                style={{ background: '#0F172A', color: '#38BDF8', border: '1px solid #0284C7', fontWeight: 700 }}
+                onClick={() => setShowScopeModal(true)}
+                title="Open full interactive Simulink Oscilloscope window"
+              >
+                📈 Scope Window
+              </button>
+            </div>
+
+            <div className="smd-toolbar-divider"></div>
+
+            {/* Classroom Problem Quick Pills */}
+            <div className="smd-preset-group">
+              <span className="smd-group-label">Classroom:</span>
+              {[
+                { key: 'parallel_springs', label: '1: Parallel' },
+                { key: 'series_springs', label: '2: Series' },
+                { key: 'series_parallel', label: '3: Series-Par.' }
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`smd-preset-btn ${activePreset === key ? 'active' : ''}`}
+                  onClick={() => loadPreset(key)}
+                  title={PRESETS[key]?.name}
+                >
+                  {label}
+                </button>
+              ))}
+
+              {/* More Templates Dropdown */}
+              <div className="smd-more-templates">
+                <select
+                  className="smd-select-preset"
+                  value={['parallel_springs', 'series_springs', 'series_parallel', 'custom'].includes(activePreset) ? '' : activePreset}
+                  onChange={(e) => {
+                    if (e.target.value) loadPreset(e.target.value);
+                  }}
+                  title="More Analytical Vibration Templates"
+                >
+                  <option value="" disabled>More Templates ▾</option>
+                  {Object.entries(PRESETS)
+                    .filter(([k]) => !['parallel_springs', 'series_springs', 'series_parallel'].includes(k))
+                    .map(([key, p]) => (
+                      <option key={key} value={key}>
+                        {p.shortLabel || p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="smd-toolbar-spacer"></div>
+
+            {/* Custom Model Actions */}
+            <div className="smd-preset-group">
+              <button
+                type="button"
+                className={`smd-blank-btn ${activePreset === 'custom' ? 'active-custom' : ''}`}
+                onClick={handleNewCustomModel}
+                title="Start a custom system to build and arrange manually"
+              >
+                ✨ Build Custom
+              </button>
+              <button
+                type="button"
+                className="smd-tool-btn danger"
+                onClick={handleClearAll}
+                title="Clear all components to start from an empty canvas"
+              >
+                🧹 Clear Canvas
+              </button>
+            </div>
           </div>
 
-          <div className="smd-toolbar-divider"></div>
+          {/* Deck Row 2: Schematic Authoring Palette, IO & System Status */}
+          <div className="smd-deck-row smd-deck-row-bottom">
+            {/* Palette */}
+            <div className="smd-palette-group">
+              <span className="smd-group-label">Palette:</span>
+              <button type="button" className="smd-tool-btn" onClick={() => addNode('mass')} title="Add Mass Block">
+                📦 +Mass
+              </button>
+              <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'left')} title="Add Fixed Ground Wall (Left Boundary Anchor)">
+                🧱 +Left Wall
+              </button>
+              <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'right')} title="Add Fixed Ground Wall (Right Boundary Anchor)">
+                🧱 +Right Wall
+              </button>
+              <button type="button" className="smd-tool-btn" onClick={handleAlignNodes} title="Snap and align all mass blocks and walls to the horizontal centerline (y = 220)">
+                📐 Align Axis
+              </button>
+              <button
+                type="button"
+                className={`smd-tool-btn ${wiringTool === 'spring' ? 'active-tool' : ''}`}
+                onClick={() => { setWiringTool(wiringTool === 'spring' ? null : 'spring'); setWireSource(null); }}
+                title="Click two components to connect with a spring"
+              >
+                🌀 Wire Spring
+              </button>
+              <button
+                type="button"
+                className={`smd-tool-btn ${wiringTool === 'damper' ? 'active-tool' : ''}`}
+                onClick={() => { setWiringTool(wiringTool === 'damper' ? null : 'damper'); setWireSource(null); }}
+                title="Click two components to connect with a dashpot damper"
+              >
+                💧 Wire Damper
+              </button>
+              <button
+                type="button"
+                className={`smd-tool-btn ${wiringTool === 'force' ? 'active-tool' : ''}`}
+                onClick={() => { setWiringTool(wiringTool === 'force' ? null : 'force'); setWireSource(null); }}
+                title="Attach an external excitation force actuator"
+              >
+                ⚡ +Force
+              </button>
+            </div>
 
-          {/* Add Component Palette ("Catch and Drop" / Click to Add) */}
-          <div className="smd-palette-group">
-            <span className="smd-group-label">Palette:</span>
-            <button type="button" className="smd-tool-btn" onClick={() => addNode('mass')} title="Add Mass Block">
-              📦 +Mass
-            </button>
-            <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'left')} title="Add Fixed Ground Wall (Left Boundary Anchor)">
-              🧱 +Left Wall
-            </button>
-            <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'right')} title="Add Fixed Ground Wall (Right Boundary Anchor)">
-              🧱 +Right Wall
-            </button>
-            <button type="button" className="smd-tool-btn" onClick={handleAlignNodes} title="Snap and align all mass blocks and walls to the horizontal centerline (y = 220)">
-              📐 Align Axis
-            </button>
-            <button
-              type="button"
-              className={`smd-tool-btn ${wiringTool === 'spring' ? 'active-tool' : ''}`}
-              onClick={() => { setWiringTool(wiringTool === 'spring' ? null : 'spring'); setWireSource(null); }}
-              title="Click two components to connect with a spring"
-            >
-              🌀 Wire Spring
-            </button>
-            <button
-              type="button"
-              className={`smd-tool-btn ${wiringTool === 'damper' ? 'active-tool' : ''}`}
-              onClick={() => { setWiringTool(wiringTool === 'damper' ? null : 'damper'); setWireSource(null); }}
-              title="Click two components to connect with a dashpot damper"
-            >
-              💧 Wire Damper
-            </button>
-            <button
-              type="button"
-              className={`smd-tool-btn ${wiringTool === 'force' ? 'active-tool' : ''}`}
-              onClick={() => { setWiringTool(wiringTool === 'force' ? null : 'force'); setWireSource(null); }}
-              title="Attach an external excitation force actuator"
-            >
-              ⚡ +Force
-            </button>
-          </div>
+            <div className="smd-toolbar-divider"></div>
 
-          <div className="smd-toolbar-divider"></div>
+            {/* Actions & IO */}
+            <div className="smd-palette-group">
+              <button
+                type="button"
+                className="smd-tool-btn danger"
+                onClick={deleteSelected}
+                disabled={!selectedId}
+                title="Delete selected component"
+              >
+                🗑️ Delete
+              </button>
+              <div className="smd-toolbar-divider" style={{ height: '16px', margin: '0 2px' }}></div>
+              <span className="smd-group-label">IO:</span>
+              <button
+                type="button"
+                className="smd-tool-btn"
+                onClick={handleSaveJSON}
+                title="Export and download current schematic as JSON"
+              >
+                💾 Save JSON
+              </button>
+              <button
+                type="button"
+                className="smd-tool-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Import and load schematic from JSON"
+              >
+                📂 Load JSON
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                style={{ display: 'none' }}
+                onChange={handleLoadJSON}
+              />
+            </div>
 
-          {/* Delete Action */}
-          <button
-            type="button"
-            className="smd-tool-btn danger"
-            onClick={deleteSelected}
-            disabled={!selectedId}
-            title="Delete selected component"
-          >
-            🗑️ Delete
-          </button>
+            <div className="smd-toolbar-spacer"></div>
 
-          <div className="smd-toolbar-divider"></div>
-
-          {/* JSON Schematic IO */}
-          <div className="smd-palette-group">
-            <span className="smd-group-label">IO:</span>
-            <button
-              type="button"
-              className="smd-tool-btn"
-              onClick={handleSaveJSON}
-              title="Export and download current schematic as JSON"
-            >
-              💾 Save JSON
-            </button>
-            <button
-              type="button"
-              className="smd-tool-btn"
-              onClick={() => fileInputRef.current?.click()}
-              title="Import and load schematic from JSON"
-            >
-              📂 Load JSON
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              style={{ display: 'none' }}
-              onChange={handleLoadJSON}
-            />
+            {/* System Status Pill */}
+            <div className="smd-status-pill-container">
+              <span className={`smd-status-pill ${isTrue2DOF ? 'dof-2' : 'dof-1'}`}>
+                {isTrue2DOF ? '🔵 2-DOF Dynamic System' : isEquivalentSDOF ? '🟢 SDOF Condensed (Coupled)' : '🟢 1-DOF SDOF System'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1685,12 +1989,60 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                     return;
                   }
 
+                  // If wiring mode is active, handle node attachment
+                  if (wiringTool) {
+                    for (const n of nodes) {
+                      const isM = n.type === 'mass';
+                      const isJunc = n.id.startsWith('junc') || Number(n.mass) <= 0.1;
+                      const pos = currentPosMapRef.current.get(n.id) || n;
+                      const hw = isJunc ? 16 : (isM ? 44 : 20);
+                      const hh = isJunc ? 26 : (isM ? 32 : 48);
+                      if (Math.abs(mx - pos.x) < hw && Math.abs(my - pos.y) < hh) {
+                        handleNodeClick(n.id);
+                        return;
+                      }
+                    }
+                    return;
+                  }
+
+                  // 1. Check click hit on nodes
                   for (const n of nodes) {
                     const isM = n.type === 'mass';
+                    const isJunc = n.id.startsWith('junc') || Number(n.mass) <= 0.1;
                     const pos = currentPosMapRef.current.get(n.id) || n;
-                    if (Math.abs(mx - pos.x) < (isM ? 44 : 20) && Math.abs(my - pos.y) < (isM ? 32 : 48)) {
-                      handleNodeClick(n.id);
+                    const hw = isJunc ? 16 : (isM ? 44 : 20);
+                    const hh = isJunc ? 26 : (isM ? 32 : 48);
+                    if (Math.abs(mx - pos.x) < hw && Math.abs(my - pos.y) < hh) {
+                      setSelectedId(n.id);
                       return;
+                    }
+                  }
+
+                  // 2. Check click hit on edges (badges or spring/damper/force geometry)
+                  for (const target of (edgeHitTargetsRef.current || [])) {
+                    if (target.badgeBox) {
+                      const { left, top, right, bottom } = target.badgeBox;
+                      if (mx >= left - 4 && mx <= right + 4 && my >= top - 4 && my <= bottom + 4) {
+                        setSelectedId(target.id);
+                        return;
+                      }
+                    }
+                    if (target.line) {
+                      const { x1, y1, x2, y2 } = target.line;
+                      const minX = Math.min(x1, x2) - 8;
+                      const maxX = Math.max(x1, x2) + 8;
+                      const minY = Math.min(y1, y2) - 12;
+                      const maxY = Math.max(y1, y2) + 12;
+                      if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
+                        const lineLen = Math.hypot(x2 - x1, y2 - y1);
+                        if (lineLen > 0) {
+                          const dist = Math.abs((y2 - y1) * mx - (x2 - x1) * my + x2 * y1 - y2 * x1) / lineLen;
+                          if (dist <= 12) {
+                            setSelectedId(target.id);
+                            return;
+                          }
+                        }
+                      }
                     }
                   }
                 }}
@@ -1753,79 +2105,165 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
             {selectedNode ? (
               <div className="smd-inspector-body">
-                <div className="smd-field-row">
-                  <label>Type:</label>
-                  <span className="smd-field-val">{selectedNode.type.toUpperCase()}</span>
-                </div>
-                <div className="smd-field-row">
-                  <label>Label:</label>
-                  <input
-                    type="text"
-                    className="smd-input"
-                    value={selectedNode.label || ''}
-                    onChange={e => updateSelectedNode('label', e.target.value)}
-                  />
-                </div>
-                {selectedNode.type === 'wall' && (
-                  <div className="smd-field-row">
-                    <label>Wall Anchor:</label>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        type="button"
-                        className={`smd-tool-btn ${selectedNode.wallSide !== 'right' ? 'active-tool' : ''}`}
-                        style={{ fontSize: '11px', padding: '3px 8px' }}
-                        onClick={() => updateSelectedNode('wallSide', 'left')}
-                      >
-                        Left (Ports Right)
-                      </button>
-                      <button
-                        type="button"
-                        className={`smd-tool-btn ${selectedNode.wallSide === 'right' ? 'active-tool' : ''}`}
-                        style={{ fontSize: '11px', padding: '3px 8px' }}
-                        onClick={() => updateSelectedNode('wallSide', 'right')}
-                      >
-                        Right (Ports Left)
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {selectedNode.type === 'mass' && (
+                {selectedNode.id.startsWith('junc') || Number(selectedNode.mass) <= 0.1 ? (
                   <>
+                    <div className="smd-inspector-header-card" style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1E293B' }}>
+                          🔗 Coupler Link Joint
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: '#E2E8F0', color: '#475569', fontFamily: 'var(--font-mono)' }}>
+                          {selectedNode.id}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#64748B', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+                        Mechanical coupling joint connecting series spring/damper elements. Massless nodal DOF is condensed via Guyan reduction in modal analysis.
+                      </p>
+                    </div>
+
                     <div className="smd-field-row">
-                      <label>Mass m (kg):</label>
+                      <label>Node Tag:</label>
                       <input
-                        type="number"
+                        type="text"
                         className="smd-input"
-                        step="0.1"
-                        min="0.1"
-                        max="20"
-                        value={selectedNode.mass || 1.0}
-                        onChange={e => updateSelectedNode('mass', parseFloat(e.target.value) || 0.1)}
+                        value={selectedNode.label || ''}
+                        onChange={e => updateSelectedNode('label', e.target.value)}
                       />
                     </div>
                     <div className="smd-field-row">
-                      <label>Initial x₀ (m):</label>
-                      <input
-                        type="number"
-                        className="smd-input"
-                        step="0.01"
-                        min="-0.5"
-                        max="0.5"
-                        value={selectedNode.x0 || 0}
-                        onChange={e => updateSelectedNode('x0', parseFloat(e.target.value) || 0)}
-                      />
+                      <label>Position X (px):</label>
+                      <span className="smd-field-val">{Math.round(selectedNode.x)} px</span>
+                    </div>
+                    <div className="smd-field-row">
+                      <label>Effective Mass:</label>
+                      <span className="smd-field-val" style={{ color: '#059669' }}>m ≈ 0 (Massless)</span>
                     </div>
                   </>
+                ) : (
+                  <>
+                    <div className="smd-inspector-header-card" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1D4ED8' }}>
+                          {selectedNode.type === 'mass' ? '📦 Vibrating Mass Block' : '🧱 Fixed Anchor Wall'}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: '#DBEAFE', color: '#1E40AF', fontFamily: 'var(--font-mono)' }}>
+                          {selectedNode.id}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="smd-field-row">
+                      <label>Display Label:</label>
+                      <input
+                        type="text"
+                        className="smd-input"
+                        value={selectedNode.label || ''}
+                        onChange={e => updateSelectedNode('label', e.target.value)}
+                      />
+                    </div>
+                    {selectedNode.type === 'wall' && (
+                      <div className="smd-field-row">
+                        <label>Wall Anchor:</label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className={`smd-tool-btn ${selectedNode.wallSide !== 'right' ? 'active-tool' : ''}`}
+                            style={{ fontSize: '11px', padding: '3px 8px' }}
+                            onClick={() => updateSelectedNode('wallSide', 'left')}
+                          >
+                            Left (Ports Right)
+                          </button>
+                          <button
+                            type="button"
+                            className={`smd-tool-btn ${selectedNode.wallSide === 'right' ? 'active-tool' : ''}`}
+                            style={{ fontSize: '11px', padding: '3px 8px' }}
+                            onClick={() => updateSelectedNode('wallSide', 'right')}
+                          >
+                            Right (Ports Left)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {selectedNode.type === 'mass' && (
+                      <>
+                        <div className="smd-field-row">
+                          <label>Mass m (kg):</label>
+                          <input
+                            type="number"
+                            className="smd-input"
+                            step="0.1"
+                            min="0.1"
+                            max="50"
+                            value={selectedNode.mass || 1.0}
+                            onChange={e => updateSelectedNode('mass', parseFloat(e.target.value) || 0.1)}
+                          />
+                        </div>
+                        <div className="smd-field-row">
+                          <label>Initial x₀ (m):</label>
+                          <input
+                            type="number"
+                            className="smd-input"
+                            step="0.01"
+                            min="-0.5"
+                            max="0.5"
+                            value={selectedNode.x0 || 0}
+                            onChange={e => updateSelectedNode('x0', parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
+                <div style={{ marginTop: '14px', borderTop: '1px solid var(--kx-border-light)', paddingTop: '10px' }}>
+                  <button
+                    type="button"
+                    className="smd-tool-btn danger"
+                    style={{ width: '100%', padding: '7px 12px', fontSize: '11.5px' }}
+                    onClick={deleteSelected}
+                  >
+                    🗑️ Delete Component
+                  </button>
+                </div>
               </div>
             ) : selectedEdge ? (
               <div className="smd-inspector-body">
-                <div className="smd-field-row">
-                  <label>Type:</label>
-                  <span className="smd-field-val">{selectedEdge.type.toUpperCase()}</span>
+                <div className="smd-inspector-header-card" style={{
+                  background: selectedEdge.type === 'spring' ? '#EFF6FF' : selectedEdge.type === 'damper' ? '#FFFBEB' : '#FEF2F2',
+                  border: `1px solid ${selectedEdge.type === 'spring' ? '#BFDBFE' : selectedEdge.type === 'damper' ? '#FDE68A' : '#FECACA'}`,
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      color: selectedEdge.type === 'spring' ? '#1D4ED8' : selectedEdge.type === 'damper' ? '#B45309' : '#DC2626'
+                    }}>
+                      {selectedEdge.type === 'spring' ? '🌀 Spring Element' : selectedEdge.type === 'damper' ? '💧 Dashpot Damper' : '⚡ Actuator Force'}
+                    </span>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: selectedEdge.type === 'spring' ? '#DBEAFE' : selectedEdge.type === 'damper' ? '#FEF3C7' : '#FEE2E2',
+                      color: selectedEdge.type === 'spring' ? '#1E40AF' : selectedEdge.type === 'damper' ? '#92400E' : '#991B1B',
+                      fontFamily: 'var(--font-mono)'
+                    }}>
+                      {selectedEdge.id}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>Span:</span>
+                    <strong>{nodes.find(n => n.id === selectedEdge.from)?.label || selectedEdge.from}</strong>
+                    <span>➔</span>
+                    <strong>{nodes.find(n => n.id === selectedEdge.to)?.label || selectedEdge.to}</strong>
+                  </div>
                 </div>
+
                 <div className="smd-field-row">
-                  <label>Label:</label>
+                  <label>Display Label:</label>
                   <input
                     type="text"
                     className="smd-input"
@@ -1834,34 +2272,85 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                     onChange={e => updateSelectedEdge('label', e.target.value)}
                   />
                 </div>
+
                 {selectedEdge.type === 'spring' && (
-                  <div className="smd-field-row">
-                    <label>Stiffness k (N/m):</label>
-                    <input
-                      type="number"
-                      className="smd-input"
-                      step="5"
-                      min="1"
-                      max="1000"
-                      value={selectedEdge.k || 100}
-                      onChange={e => updateSelectedEdge('k', parseFloat(e.target.value) || 1)}
-                    />
-                  </div>
+                  <>
+                    <div className="smd-field-row">
+                      <label>Stiffness k (N/m):</label>
+                      <input
+                        type="number"
+                        className="smd-input"
+                        step="5"
+                        min="1"
+                        max="2000"
+                        value={selectedEdge.k || 100}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 1;
+                          updateSelectedEdge('k', val);
+                          if (!selectedEdge.label || selectedEdge.label.startsWith('k')) {
+                            updateSelectedEdge('label', `k = ${val} N/m`);
+                          }
+                        }}
+                      />
+                    </div>
+                    {/* Quick preset buttons */}
+                    <div style={{ display: 'flex', gap: '4px', margin: '4px 0 10px 0', flexWrap: 'wrap' }}>
+                      {[50, 100, 150, 200, 250, 300].map(kval => (
+                        <button
+                          key={kval}
+                          type="button"
+                          className="smd-preset-mini-btn"
+                          onClick={() => {
+                            updateSelectedEdge('k', kval);
+                            updateSelectedEdge('label', `k = ${kval} N/m`);
+                          }}
+                        >
+                          {kval} N/m
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
+
                 {selectedEdge.type === 'damper' && (
-                  <div className="smd-field-row">
-                    <label>Damping c (N·s/m):</label>
-                    <input
-                      type="number"
-                      className="smd-input"
-                      step="0.1"
-                      min="0"
-                      max="20"
-                      value={selectedEdge.c || 1.0}
-                      onChange={e => updateSelectedEdge('c', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
+                  <>
+                    <div className="smd-field-row">
+                      <label>Damping c (N·s/m):</label>
+                      <input
+                        type="number"
+                        className="smd-input"
+                        step="0.1"
+                        min="0"
+                        max="50"
+                        value={selectedEdge.c || 1.0}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0;
+                          updateSelectedEdge('c', val);
+                          if (!selectedEdge.label || selectedEdge.label.startsWith('c')) {
+                            updateSelectedEdge('label', `c = ${val} N·s/m`);
+                          }
+                        }}
+                      />
+                    </div>
+                    {/* Quick preset buttons */}
+                    <div style={{ display: 'flex', gap: '4px', margin: '4px 0 10px 0', flexWrap: 'wrap' }}>
+                      {[0.5, 1.0, 1.5, 2.0, 3.0, 5.0].map(cval => (
+                        <button
+                          key={cval}
+                          type="button"
+                          className="smd-preset-mini-btn"
+                          onClick={() => {
+                            updateSelectedEdge('c', cval);
+                            updateSelectedEdge('label', `c = ${cval} N·s/m`);
+                          }}
+                        >
+                          {cval} N·s/m
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
+
                 {selectedEdge.type === 'force' && (
                   <>
                     <div className="smd-field-row">
@@ -1904,6 +2393,17 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                     )}
                   </>
                 )}
+
+                <div style={{ marginTop: '14px', borderTop: '1px solid var(--kx-border-light)', paddingTop: '10px' }}>
+                  <button
+                    type="button"
+                    className="smd-tool-btn danger"
+                    style={{ width: '100%', padding: '7px 12px', fontSize: '11.5px' }}
+                    onClick={deleteSelected}
+                  >
+                    🗑️ Remove Component
+                  </button>
+                </div>
               </div>
             ) : selectedId === 'scope' ? (
               <div className="smd-inspector-body">
@@ -2904,6 +3404,54 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
 // ── Graphical Canvas Helper Drawing Functions ─────────────────────────────────
 
+function drawEdgeBadge(ctx, x, y, label, type, isSelected) {
+  if (!label) return;
+  ctx.save();
+  ctx.font = '600 10.5px "Inter", system-ui, -apple-system, sans-serif';
+  const textWidth = ctx.measureText(label).width;
+  const pw = Math.max(textWidth + 22, 68);
+  const ph = 20;
+
+  // Soft subtle drop shadow
+  ctx.shadowColor = isSelected ? 'rgba(37, 99, 235, 0.35)' : 'rgba(15, 23, 42, 0.08)';
+  ctx.shadowBlur = isSelected ? 8 : 4;
+  ctx.shadowOffsetY = 2;
+
+  // White badge body
+  ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
+  ctx.beginPath();
+  ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 5);
+  ctx.fill();
+
+  ctx.shadowColor = 'transparent';
+  // Crisp border
+  ctx.strokeStyle = isSelected
+    ? '#2563EB'
+    : (type === 'spring' ? '#93C5FD' : type === 'damper' ? '#FCD34D' : '#FCA5A5');
+  ctx.lineWidth = isSelected ? 2.0 : 1.2;
+  ctx.stroke();
+
+  // Indicator circle
+  const dotColor = isSelected
+    ? '#2563EB'
+    : (type === 'spring' ? '#2563EB' : type === 'damper' ? '#D97706' : '#DC2626');
+  ctx.fillStyle = dotColor;
+  ctx.beginPath();
+  ctx.arc(x - pw / 2 + 9, y, 2.5, 0, 2 * Math.PI);
+  ctx.fill();
+
+  // Label text in clean sans-serif
+  ctx.fillStyle = isSelected
+    ? '#1D4ED8'
+    : (type === 'spring' ? '#1E40AF' : type === 'damper' ? '#B45309' : '#B91C1C');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 4, y);
+  ctx.restore();
+
+  return { left: x - pw / 2, top: y - ph / 2, right: x + pw / 2, bottom: y + ph / 2, w: pw, h: ph };
+}
+
 function drawSpring(ctx, x1, y1, x2, y2, color, label) {
   const isAngled = Math.abs(y2 - y1) > 4;
   let p1x = x1, p1y = y1, p2x = x2, p2y = y2;
@@ -2960,22 +3508,14 @@ function drawSpring(ctx, x1, y1, x2, y2, color, label) {
   ctx.lineTo(dist, 0);
   ctx.stroke();
 
-  // Label badge
+  // Label badge (only if explicitly passed directly without caller override)
   if (label) {
     ctx.save();
-    ctx.translate(dist / 2, -h - 8);
+    ctx.translate(dist / 2, -h - 10);
     if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
       ctx.rotate(Math.PI);
     }
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.beginPath();
-    ctx.roundRect(-34, -8, 68, 16, 4);
-    ctx.fill();
-    ctx.fillStyle = '#60A5FA';
-    ctx.font = '700 9.5px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, 0, 0);
+    drawEdgeBadge(ctx, 0, 0, label, 'spring', false);
     ctx.restore();
   }
 
@@ -3047,22 +3587,14 @@ function drawDamper(ctx, x1, y1, x2, y2, color, label) {
   ctx.lineTo(dist, 0);
   ctx.stroke();
 
-  // Label badge
+  // Label badge (only if explicitly passed directly without caller override)
   if (label) {
     ctx.save();
-    ctx.translate(mid, -cylH / 2 - 8);
+    ctx.translate(mid, -cylH / 2 - 10);
     if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
       ctx.rotate(Math.PI);
     }
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.beginPath();
-    ctx.roundRect(-34, -8, 68, 16, 4);
-    ctx.fill();
-    ctx.fillStyle = '#FBBF24';
-    ctx.font = '700 9.5px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, 0, 0);
+    drawEdgeBadge(ctx, 0, 0, label, 'damper', false);
     ctx.restore();
   }
 
@@ -3102,19 +3634,10 @@ function drawForceArrow(ctx, x, y, color, label) {
   ctx.closePath();
   ctx.fill();
 
-  // Actuator badge label
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-  ctx.beginPath();
-  ctx.roundRect(x - 38, arrowY - 18, 76, 15, 3);
-  ctx.fill();
-
-  ctx.fillStyle = '#F87171';
-  ctx.font = '700 9px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x, arrowY - 10);
-
+  // Actuator badge label using clean badge styling
+  const badgeBox = drawEdgeBadge(ctx, x, arrowY - 16, label, 'force', color === '#DC2626');
   ctx.restore();
+  return badgeBox || { left: arrowStart, top: arrowY - 24, right: arrowEnd, bottom: arrowY + 8 };
 }
 
 // ── MathWorks Simulink Block Diagram Canvas Renderer ─────────────────────────

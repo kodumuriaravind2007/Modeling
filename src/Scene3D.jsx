@@ -1701,16 +1701,19 @@ export const Scene3D = ({
     const planeIntersect = new THREE.Vector3();
 
     const handlePointerDown = (e) => {
-      if (simTypeRef.current !== 'simple_pendulum') return;
+      const isSimple = simTypeRef.current === 'simple_pendulum';
+      const isCompound = simTypeRef.current === 'compound_pendulum';
+      if (!isSimple && !isCompound) return;
       const parts = dynamicPartsRef.current;
-      if (!parts || !parts.hitSphere) return;
+      const hitMesh = parts?.hitTarget || parts?.hitSphere;
+      if (!parts || !hitMesh) return;
 
       const rect = domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObject(parts.hitSphere);
+      const intersects = raycaster.intersectObject(hitMesh);
 
       if (intersects.length > 0) {
         e.preventDefault();
@@ -1721,6 +1724,8 @@ export const Scene3D = ({
 
         if (parts.bobMesh) {
           parts.bobMesh.material.emissive.setHex(0x3561ee);
+        } else if (parts.beamMesh) {
+          parts.beamMesh.material.emissive.setHex(0x1b357d);
         }
 
         if (onPauseRef.current) {
@@ -1732,7 +1737,8 @@ export const Scene3D = ({
           let deg = THREE.MathUtils.radToDeg(angleRad);
           deg = Math.max(-85, Math.min(85, deg));
           currentDragAngleDegRef.current = deg;
-          parts.armGroup.rotation.z = THREE.MathUtils.degToRad(deg);
+          const targetGroup = parts.armGroup || parts.beamGroup;
+          if (targetGroup) targetGroup.rotation.z = THREE.MathUtils.degToRad(deg);
           if (onBobDragMoveRef.current) {
             onBobDragMoveRef.current(Math.round(deg * 10) / 10);
           }
@@ -1749,13 +1755,14 @@ export const Scene3D = ({
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      if (isDraggingRef.current && parts.armGroup) {
-        if (raycaster.ray.intersectPlane(swingPlane, planeIntersect)) {
+      if (isDraggingRef.current) {
+        const targetGroup = parts.armGroup || parts.beamGroup;
+        if (targetGroup && raycaster.ray.intersectPlane(swingPlane, planeIntersect)) {
           const angleRad = Math.atan2(planeIntersect.x, -planeIntersect.y);
           let deg = THREE.MathUtils.radToDeg(angleRad);
           deg = Math.max(-85, Math.min(85, deg));
           currentDragAngleDegRef.current = deg;
-          parts.armGroup.rotation.z = THREE.MathUtils.degToRad(deg);
+          targetGroup.rotation.z = THREE.MathUtils.degToRad(deg);
           if (onBobDragMoveRef.current) {
             onBobDragMoveRef.current(Math.round(deg * 10) / 10);
           }
@@ -1763,18 +1770,25 @@ export const Scene3D = ({
         return;
       }
 
-      if (simTypeRef.current === 'simple_pendulum' && parts.hitSphere) {
-        const intersects = raycaster.intersectObject(parts.hitSphere);
+      const isSimple = simTypeRef.current === 'simple_pendulum';
+      const isCompound = simTypeRef.current === 'compound_pendulum';
+      const hitMesh = parts?.hitTarget || parts?.hitSphere;
+      if ((isSimple || isCompound) && hitMesh) {
+        const intersects = raycaster.intersectObject(hitMesh);
         if (intersects.length > 0) {
           domElement.style.cursor = 'grab';
           if (parts.bobMesh && parts.bobMesh.material.emissive.getHex() === 0) {
             parts.bobMesh.material.emissive.setHex(0x1b357d);
+          } else if (parts.beamMesh && parts.beamMesh.material.emissive.getHex() === 0) {
+            parts.beamMesh.material.emissive.setHex(0x14203a);
           }
         } else {
           if (!isDraggingRef.current) {
             domElement.style.cursor = 'default';
             if (parts.bobMesh && parts.bobMesh.material.emissive.getHex() === 0x1b357d) {
               parts.bobMesh.material.emissive.setHex(0x000000);
+            } else if (parts.beamMesh && parts.beamMesh.material.emissive.getHex() === 0x14203a) {
+              parts.beamMesh.material.emissive.setHex(0x000000);
             }
           }
         }
@@ -1789,6 +1803,9 @@ export const Scene3D = ({
         const parts = dynamicPartsRef.current;
         if (parts && parts.bobMesh) {
           parts.bobMesh.material.emissive.setHex(0x000000);
+        }
+        if (parts && parts.beamMesh) {
+          parts.beamMesh.material.emissive.setHex(0x000000);
         }
         continuousTimeRef.current = 0;
         if (onBobDragReleaseRef.current) {
@@ -2149,6 +2166,14 @@ export const Scene3D = ({
       copMesh.position.set(0, -L_vis * (2 / 3), rodD / 2 + 0.015);
       beamGroup.add(copMesh);
 
+      // Invisible Raycasting Hit Box covering compound pendulum beam for direct dragging
+      const hitGeo = new THREE.BoxGeometry(rodW * 2.5, 1.0, rodD * 4.0);
+      hitGeo.translate(0, -0.5, 0);
+      const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+      const hitBox = new THREE.Mesh(hitGeo, hitMat);
+      hitBox.scale.set(1, L_vis, 1);
+      beamGroup.add(hitBox);
+
       const thetaRad = THREE.MathUtils.degToRad(params?.theta0 || 25);
       beamGroup.rotation.z = thetaRad;
       group.add(beamGroup);
@@ -2159,6 +2184,7 @@ export const Scene3D = ({
         beamMesh,
         comMesh,
         copMesh,
+        hitTarget: hitBox,
         rodD,
         L_vis
       };
@@ -2641,6 +2667,7 @@ export const Scene3D = ({
 
       // 2. COMPOUND PENDULUM KINEMATICS
       else if (parts.type === 'compound_pendulum' && parts.beamGroup) {
+        if (isDraggingRef.current) return;
         if (playing) {
           const tMax = liveData?.time?.[liveData.time.length - 1] || 5.0;
           const curT = continuousTimeRef.current % tMax;
@@ -3125,8 +3152,8 @@ export const Scene3D = ({
             <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
               ⟳ Continuous 360° Orbit • Click any view to stop
             </span>
-          ) : simType === 'simple_pendulum' ? (
-            'Left-drag bob to set initial angle • Drag space to orbit • Scroll to zoom'
+          ) : (simType === 'simple_pendulum' || simType === 'compound_pendulum') ? (
+            'Left-drag pendulum to set initial angle • Drag space to orbit • Scroll to zoom'
           ) : (
             'Left-drag space to orbit • Right-drag to pan • Scroll to zoom'
           )}

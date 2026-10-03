@@ -751,6 +751,39 @@ export function drawCompoundPendulum(ctx, w, h, theta_deg, params = {}) {
   // 6. Pivot Bearing Axle
   drawCADJointPin(ctx, pivotX, pivotY, '#173770', 'O', 9);
 
+  // 7. Interactive Dragging Guide & Release Trajectory (Compound Pendulum)
+  if (!params.isPlaying || params.isDragging) {
+    ctx.save();
+    // Halo around beam tip
+    ctx.strokeStyle = '#3561EE';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(endX, endY, rodW * 0.65 + 6, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    // Release Arc Path
+    ctx.strokeStyle = '#DF7940';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(pivotX, pivotY, L, Math.PI / 2 - Math.abs(theta), Math.PI / 2, theta < 0);
+    ctx.stroke();
+
+    // "RELEASE TO SWING" callout tag
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#DF7940';
+    ctx.beginPath();
+    ctx.roundRect(endX - 62, endY + 16, 124, 22, 6);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 10px "Inter", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RELEASE TO SWING', endX, endY + 27);
+    ctx.restore();
+  }
+
   // HUD
   drawCanvasHUD(ctx, w, h, 'Compound Pendulum', {
     'Angle (θ)': `${theta_deg.toFixed(1)}°`,
