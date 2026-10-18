@@ -18,7 +18,8 @@ import {
   solveGraphModal,
   simulateGraphTimeDomain,
   computeGraphFRF,
-  solveClassroomProblem
+  solveClassroomProblem,
+  generateMatlabScript
 } from '../src/core/smdSolver.js';
 
 import {
@@ -580,6 +581,56 @@ const vUserCase = validateDesignConstraints(
 assert(vUserCase.hasErrors === true, 'Validation catches omega [20, 30] as impossible range');
 assert(vUserCase.errors.max_omega.includes('Impossible range'), 'Error message clearly flags unattainable angular velocity');
 assert(vUserCase.isValid === false, 'Form is marked invalid to disable the sweep button');
+
+// --- 8. Testing MATLAB / Simulink Code Script Generation ---
+console.log('\n--- 8. Testing MATLAB / Simulink Production Code Export ---');
+const mlNodes1DOF = [
+  { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Base' },
+  { id: 'm1', type: 'mass', x: 440, y: 220, mass: 2.5, x0: 0.10, v0: 0.0, label: 'm₁' }
+];
+const mlEdges1DOF = [
+  { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 250.0 },
+  { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 3.5 },
+  { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 12.0, freq: 8.0 }
+];
+const script1 = generateMatlabScript(null, mlNodes1DOF, mlEdges1DOF, { m: 2.5, k_eq: 250.0, c_eq: 3.5 });
+assert(typeof script1 === 'string' && script1.length > 500, '1-DOF MATLAB script generated successfully');
+assert(script1.includes('m = 2.50;'), '1-DOF script contains correct mass 2.50 kg');
+assert(script1.includes('k = 250.00;'), '1-DOF script contains correct stiffness 250.00 N/m');
+assert(script1.includes('c = 3.50;'), '1-DOF script contains correct damping 3.50 N·s/m');
+assert(script1.includes('F0 = 12.00;'), '1-DOF script contains correct excitation force 12.00 N');
+assert(script1.includes('omega_f = 8.00;'), '1-DOF script contains correct frequency 8.00 rad/s');
+assert(!script1.includes('undefined') && !script1.includes('NaN'), '1-DOF script contains zero undefined or NaN tokens');
+
+// 2-DOF Coupled Mass System
+const mlNodes2DOF = [
+  { id: 'wall1', type: 'wall', x: 70, y: 220 },
+  { id: 'm1', type: 'mass', x: 270, y: 220, mass: 3.0, x0: 0.08, v0: 0.0 },
+  { id: 'm2', type: 'mass', x: 490, y: 220, mass: 1.5, x0: -0.05, v0: 0.2 },
+  { id: 'wall2', type: 'wall', x: 670, y: 220 }
+];
+const mlEdges2DOF = [
+  { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 120.0 },
+  { id: 'k12', type: 'spring', from: 'm1', to: 'm2', k: 30.0 },
+  { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.0 },
+  { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 25.0, freq: 4.5 }
+];
+const system2DOF = {
+  M: [[3.0, 0], [0, 1.5]],
+  C: [[1.0, 0], [0, 0]],
+  K: [[150.0, -30.0], [-30.0, 30.0]]
+};
+const script2 = generateMatlabScript(system2DOF, mlNodes2DOF, mlEdges2DOF, null);
+assert(typeof script2 === 'string' && script2.length > 500, '2-DOF MATLAB script generated successfully');
+assert(script2.includes('2-DOF MASS-SPRING-DAMPER'), '2-DOF script header specifies 2-DOF');
+assert(script2.includes('N = 2'), '2-DOF script contains N = 2');
+assert(script2.includes('M = [3.00, 0.00;\n     0.00, 1.50];'), '2-DOF script contains correct M matrix');
+assert(script2.includes('z0(1) = 0.080;'), '2-DOF script binds initial displacement x1');
+assert(script2.includes('z0(2) = -0.050;'), '2-DOF script binds initial displacement x2');
+assert(script2.includes('z0(4) = 0.200;'), '2-DOF script binds initial velocity v2');
+assert(script2.includes('F0 = 25.00;'), '2-DOF script binds excitation force 25.00 N');
+assert(script2.includes('omega_f = 4.50;'), '2-DOF script binds excitation frequency 4.50 rad/s');
+assert(!script2.includes('undefined') && !script2.includes('NaN'), '2-DOF script contains zero undefined or NaN tokens');
 
 console.log('\n====================================================');
 console.log(`SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED SUCCESSFULLY!`);

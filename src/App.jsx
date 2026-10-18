@@ -14,7 +14,7 @@ import {
 import { computeLiveValidation } from './liveValidation';
 import { simulateClient } from './clientSimulation';
 import { checkFeasibility, FEASIBILITY_STATUS } from './core/feasibility.js';
-import { solveClientDesignSweep, validateDesignConstraints } from './core/designSweep.js';
+import { solveClientDesignSweep, solveClientSensitivity, validateDesignConstraints } from './core/designSweep.js';
 
 import { Navbar } from './components/Navbar';
 import { MechanismModal } from './components/MechanismModal';
@@ -799,17 +799,39 @@ export default function App() {
 
   const runSensitivity = async () => {
     setAnalysisLoading(true);
+    const pKeys = SIMULATIONS[simType].sliders.map(s => s.key);
+
+    // 1. Immediately compute instant client-side OAT sensitivity (< 2 ms)
+    let clientSolved = false;
     try {
-      const pKeys = SIMULATIONS[simType].sliders.map(s => s.key);
+      const clientRes = solveClientSensitivity(simType, params, 10, pKeys);
+      if (clientRes) {
+        setSensRes(clientRes);
+        clientSolved = true;
+      }
+    } catch (err) {
+      console.warn('Client sensitivity calculation note:', err);
+    }
+
+    if (clientSolved) {
+      setAnalysisLoading(false);
+    }
+
+    // 2. Asynchronously reconcile with backend in the background
+    try {
       const res = await axios.post(`${API}/sensitivity`, {
         sim_type: simType,
         base_params: params,
         perturbation_pct: 10,
         param_keys: pKeys
-      });
-      setSensRes(res.data.data);
+      }, { timeout: 3000 });
+      if (res?.data?.data) {
+        setSensRes(res.data.data);
+      }
     } catch (e) {
-      showToast('Sensitivity Notice: ' + (e.response?.data?.message || e.message), 'error');
+      if (!clientSolved) {
+        showToast('Sensitivity Notice: ' + (e.response?.data?.message || e.message), 'error');
+      }
     } finally {
       setAnalysisLoading(false);
     }

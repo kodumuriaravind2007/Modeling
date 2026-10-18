@@ -30,19 +30,19 @@ const chartOptsLight = (yLabel) => ({
       padding: 10,
       boxPadding: 4,
       usePointStyle: true,
-      titleFont: { size: 11, weight: '700' },
-      bodyFont: { size: 11, family: 'JetBrains Mono' }
+      titleFont: { size: 11, weight: '700', family: 'Inter, system-ui, sans-serif' },
+      bodyFont: { size: 11, family: 'Inter, system-ui, sans-serif' }
     }
   },
   scales: {
     x: {
-      ticks: { color: '#526B8F', font: { size: 10, family: 'JetBrains Mono' }, maxTicksLimit: 8 },
+      ticks: { color: '#526B8F', font: { size: 10, family: 'Inter, system-ui, sans-serif' }, maxTicksLimit: 8 },
       grid: { color: '#E8EAF4', drawBorder: false }
     },
     y: {
-      ticks: { color: '#526B8F', font: { size: 10, family: 'JetBrains Mono' } },
+      ticks: { color: '#526B8F', font: { size: 10, family: 'Inter, system-ui, sans-serif' } },
       grid: { color: '#E8EAF4', drawBorder: false },
-      title: { display: true, text: yLabel, color: '#173770', font: { size: 11, weight: '600', family: 'Inter' } }
+      title: { display: true, text: yLabel, color: '#173770', font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' } }
     }
   }
 });
@@ -58,7 +58,7 @@ const scatterOptsLight = (xTitle = 'θ (rad)', yTitle = 'ω (rad/s)') => ({
     legend: {
       labels: {
         color: '#173770',
-        font: { size: 11, family: 'Inter', weight: '600' },
+        font: { size: 11, family: 'Inter, system-ui, sans-serif', weight: '600' },
         boxWidth: 12
       }
     },
@@ -72,14 +72,14 @@ const scatterOptsLight = (xTitle = 'θ (rad)', yTitle = 'ω (rad/s)') => ({
   },
   scales: {
     x: {
-      ticks: { color: '#526B8F', font: { size: 10, family: 'JetBrains Mono' } },
+      ticks: { color: '#526B8F', font: { size: 10, family: 'Inter, system-ui, sans-serif' } },
       grid: { color: '#E8EAF4' },
-      title: { display: true, text: xTitle, color: '#173770', font: { size: 11, weight: '600' } }
+      title: { display: true, text: xTitle, color: '#173770', font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' } }
     },
     y: {
-      ticks: { color: '#526B8F', font: { size: 10, family: 'JetBrains Mono' } },
+      ticks: { color: '#526B8F', font: { size: 10, family: 'Inter, system-ui, sans-serif' } },
       grid: { color: '#E8EAF4' },
-      title: { display: true, text: yTitle, color: '#173770', font: { size: 11, weight: '600' } }
+      title: { display: true, text: yTitle, color: '#173770', font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' } }
     }
   }
 });
@@ -615,7 +615,7 @@ export const AnalysisModal = ({
                 <div className="analysis-empty-card">
                   <div className="empty-icon">🔬</div>
                   <h3 className="empty-title">Validation Benchmarks Not Computed</h3>
-                  <p className="empty-desc">Run the simulation to execute the analytical validation matrix against closed-form equations and published papers.</p>
+                  <p className="empty-desc">Run the simulation to execute the analytical validation matrix against closed-form analytical equations.</p>
                   <button type="button" className="btn-action-primary" onClick={onRunSimulation} disabled={loading}>
                     {loading ? 'Computing...' : '▶ Run Simulation'}
                   </button>
@@ -660,17 +660,6 @@ export const AnalysisModal = ({
                         <span className="kpi-subtext">Verified Exact Solution</span>
                       </div>
                     </div>
-
-                    {validation.paper_info?.source && (
-                      <div className="validation-kpi-card">
-                        <div className="kpi-icon-badge paper">📚</div>
-                        <div className="kpi-info">
-                          <span className="kpi-label">Literature Reference</span>
-                          <span className="kpi-value small-title">{validation.paper_info.source}</span>
-                          <span className="kpi-subtext">Peer-Reviewed Benchmark</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* ── Real-time Physical Feasibility Engine ── */}
@@ -760,7 +749,6 @@ export const AnalysisModal = ({
                             <th>Parameter</th>
                             <th>Theoretical Exact</th>
                             <th>Numerical (RK45)</th>
-                            <th>Paper Reference</th>
                             <th>Abs Error</th>
                             <th>% Error</th>
                             <th>Verification</th>
@@ -772,7 +760,6 @@ export const AnalysisModal = ({
                               <td className="param-name">{row.name}</td>
                               <td className="param-num">{row.theoretical}</td>
                               <td className="param-num highlight">{row.numerical}</td>
-                              <td className="param-num muted">{row.paper}</td>
                               <td className="param-num">{row.abs_error}</td>
                               <td className="param-num">{row.pct_error}</td>
                               <td>
@@ -1257,7 +1244,7 @@ export const AnalysisModal = ({
                   <div className="export-tile">
                     <div className="export-icon">📄</div>
                     <h4 className="export-title">PDF Technical Report</h4>
-                    <p className="export-desc">Compiles mathematical model, parameter configurations, RK45 vs analytical error matrix, and benchmark paper citations into a formal document.</p>
+                    <p className="export-desc">Compiles mathematical model, parameter configurations, and numerical vs analytical error matrix into a formal document.</p>
                     <button
                       type="button"
                       className="btn-action-primary"

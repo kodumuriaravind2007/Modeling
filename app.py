@@ -39,8 +39,7 @@ from validation.analytical import (
     slider_crank_max_velocity,
     slider_crank_max_acceleration,
     grashof_condition,
-    four_bar_rocker_range,
-    PAPER_BENCHMARKS
+    four_bar_rocker_range
 )
 from validation.feasibility import check_feasibility
 from ai_assistant import ask_ai
@@ -70,12 +69,11 @@ def fmt(val, decimals=4):
         return str(val)
 
 
-def make_error_row(name, theoretical, numerical, paper=None, tolerance=0.05):
+def make_error_row(name, theoretical, numerical, tolerance=0.05):
     """Build a validation row with error metrics."""
     try:
         th = float(theoretical) if theoretical is not None else None
         nu = float(numerical) if numerical is not None else None
-        pa = float(paper) if paper is not None else None
 
         if th is not None and nu is not None and th != 0:
             abs_err = abs(nu - th)
@@ -90,14 +88,13 @@ def make_error_row(name, theoretical, numerical, paper=None, tolerance=0.05):
             "name": name,
             "theoretical": fmt(th),
             "numerical": fmt(nu),
-            "paper": fmt(pa) if pa is not None else "--",
             "abs_error": fmt(abs_err) if abs_err is not None else "--",
             "pct_error": f"{pct_err:.2f}%" if pct_err is not None else "--",
-            "pass": bool(passed) if passed is not None else False
+            "pass": bool(passed) if passed is not None else None
         }
     except Exception as e:
         return {"name": name, "theoretical": "--", "numerical": "--",
-                "paper": "--", "abs_error": "--", "pct_error": "--", "pass": False}
+                "abs_error": "--", "pct_error": "--", "pass": None}
 
 
 # ================================================================
@@ -190,7 +187,6 @@ def validate():
 
     rows = []
     summary = {}
-    paper_info = PAPER_BENCHMARKS.get(sim_type, {})
 
     try:
         if sim_type == 'simple_pendulum':
@@ -203,17 +199,6 @@ def validate():
             T_exact  = simple_pendulum_elliptic_period(length, gravity, theta0)
             T_series = simple_pendulum_series_period(length, gravity, theta0)
 
-            # Paper benchmark: exact elliptic ratio via Beléndez et al.
-            calc_fn = paper_info.get("exact_ratio_fn")
-            if calc_fn:
-                paper_ratio = calc_fn(theta0)
-                nearest_angle = theta0
-            else:
-                ratio_table = paper_info.get("period_ratios", {})
-                nearest_angle = min(ratio_table.keys(), key=lambda x: abs(x - theta0)) if ratio_table else theta0
-                paper_ratio   = ratio_table.get(nearest_angle, 1.0)
-            T_paper = T_small * paper_ratio
-
             # Numerical period from simulation
             T_numerical = measure_numerical_period(
                 sim_data.get("time", []),
@@ -223,18 +208,17 @@ def validate():
             # Main nonlinear validation
             rows.append(make_error_row(
                 "Exact Elliptic Period T (s)",
-                T_exact, T_numerical, T_paper, tolerance=0.02
+                T_exact, T_numerical, tolerance=0.02
             ))
             rows.append(make_error_row(
                 "Series Approx. Period (s)",
-                T_series, T_numerical, None, tolerance=0.03
+                T_series, T_numerical, tolerance=0.03
             ))
             # Small-angle approximation for reference only (do not compare against nonlinear numerical)
             rows.append({
                 "name": "Small-Angle Period T₀ (s)",
                 "theoretical": fmt(T_small),
                 "numerical": "--",
-                "paper": "--",
                 "abs_error": "--",
                 "pct_error": "--",
                 "pass": True
@@ -252,12 +236,12 @@ def validate():
                 if T_damped is not None:
                     rows.append(make_error_row(
                         "Damped Period Td (s)  [zeta={:.3f}]".format(zeta),
-                        T_damped, T_numerical, None, tolerance=0.05
+                        T_damped, T_numerical, tolerance=0.05
                     ))
                 else:
                     rows.append({"name": "System is Overdamped (ζ≥1)", "pass": True,
                                  "theoretical": "--", "numerical": "--",
-                                 "paper": "--", "abs_error": "--", "pct_error": "--"})
+                                 "abs_error": "--", "pct_error": "--"})
             else:
                 energy_drift = sim_data.get("energy_drift", 0)
                 energy_ok = abs(energy_drift) < 0.001
@@ -266,13 +250,9 @@ def validate():
                 "T_small": fmt(T_small),
                 "T_exact": fmt(T_exact),
                 "T_series": fmt(T_series),
-                "T_paper": fmt(T_paper),
                 "T_numerical": fmt(T_numerical),
                 "energy_drift_pct": fmt(sim_data.get("energy_drift", 0) * 100, 4) if not is_damped else "N/A",
-                "energy_conservation": "PASS" if (not is_damped and energy_ok) else ("DAMPED" if is_damped else "FAIL"),
-                "paper_source": paper_info.get("source", ""),
-                "paper_angle_used": nearest_angle,
-                "paper_ratio": paper_ratio,
+                "energy_conservation": "PASS" if (not is_damped and energy_ok) else ("DAMPED" if is_damped else "FAIL")
             }
 
         elif sim_type == 'compound_pendulum':
@@ -296,25 +276,20 @@ def validate():
                 sim_data.get("theta", [])
             )
 
-            paper_I_ratio = PAPER_BENCHMARKS["compound_pendulum"]["I_ratio"]
-            paper_L_eff   = PAPER_BENCHMARKS["compound_pendulum"]["L_eff_ratio"] * length
-
-            rows.append(make_error_row("Exact Elliptic Period T (s)", T_exact, T_numerical, None, 0.05))
+            rows.append(make_error_row("Exact Elliptic Period T (s)", T_exact, T_numerical, tolerance=0.05))
             rows.append({
                 "name": "Small-Angle Period T₀ (s)",
                 "theoretical": fmt(T_theory),
                 "numerical": "--",
-                "paper": "--",
                 "abs_error": "--",
                 "pct_error": "--",
                 "pass": True
             })
-            rows.append(make_error_row("Effective Length (m)", L_eff, sim_data.get("L_eff"), paper_L_eff, 0.01))
+            rows.append(make_error_row("Effective Length (m)", L_eff, sim_data.get("L_eff"), tolerance=0.01))
             rows.append({
                 "name": "Theoretical Invariant: I_pivot / (m·L²) = 1/3",
                 "theoretical": "0.3333",
                 "numerical": "--",
-                "paper": fmt(paper_I_ratio, 4),
                 "abs_error": "--",
                 "pct_error": "--",
                 "pass": True
@@ -330,7 +305,7 @@ def validate():
                 if T_damped is not None:
                     rows.append(make_error_row(
                         "Damped Period Td (s)  [zeta={:.3f}]".format(zeta),
-                        T_damped, T_numerical, None, tolerance=0.05
+                        T_damped, T_numerical, tolerance=0.05
                     ))
             else:
                 energy_drift = sim_data.get("energy_drift", 0)
@@ -343,8 +318,7 @@ def validate():
                 "L_eff": fmt(L_eff),
                 "I_pivot": fmt(I_pivot),
                 "energy_drift_pct": fmt(sim_data.get("energy_drift", 0) * 100, 4) if not is_damped else "N/A",
-                "energy_conservation": "PASS" if (not is_damped and energy_ok) else ("DAMPED" if is_damped else "FAIL"),
-                "paper_source": PAPER_BENCHMARKS["compound_pendulum"]["source"],
+                "energy_conservation": "PASS" if (not is_damped and energy_ok) else ("DAMPED" if is_damped else "FAIL")
             }
 
         elif sim_type == 'slider_crank':
@@ -357,26 +331,17 @@ def validate():
             v_max_theory  = slider_crank_max_velocity(r, l, speed)
             a_max_theory  = slider_crank_max_acceleration(r, l, speed)
 
-            # Paper table lookup
-            lam_table = PAPER_BENCHMARKS["slider_crank"]["lambda_table"]
-            nearest_lam = min(lam_table.keys(), key=lambda x: abs(x - lam))
-            paper_entry = lam_table[nearest_lam]
-            omega = speed * 2 * np.pi / 60
-            paper_v_max = paper_entry["v_max_factor"] * r * omega
-            paper_a_max = paper_entry["a_max_factor"] * r * omega**2
-
             num_stroke = sim_data.get("stroke")
             num_v_max  = sim_data.get("v_max")
             num_a_max  = sim_data.get("a_max")
 
-            rows.append(make_error_row("Stroke Length S (m) [2r]", stroke_theory, num_stroke, stroke_theory, 0.001))
-            rows.append(make_error_row("Max Linear Velocity v_max (m/s)", v_max_theory, num_v_max, paper_v_max, 0.03))
-            rows.append(make_error_row("Max Linear Acceleration a_max (m/s²)", a_max_theory, num_a_max, paper_a_max, 0.03))
+            rows.append(make_error_row("Stroke Length S (m) [2r]", stroke_theory, num_stroke, tolerance=0.001))
+            rows.append(make_error_row("Max Linear Velocity v_max (m/s)", v_max_theory, num_v_max, tolerance=0.03))
+            rows.append(make_error_row("Max Linear Acceleration a_max (m/s²)", a_max_theory, num_a_max, tolerance=0.03))
             rows.append({
                 "name": "Rod Obliquity Ratio λ (r/l)",
                 "theoretical": fmt(lam, 4),
                 "numerical": fmt(lam, 4),
-                "paper": fmt(nearest_lam, 2),
                 "abs_error": "--",
                 "pct_error": "--",
                 "pass": lam < 1.0
@@ -386,9 +351,7 @@ def validate():
                 "lambda": fmt(lam, 3),
                 "stroke_theory": fmt(stroke_theory),
                 "v_max_theory": fmt(v_max_theory),
-                "a_max_theory": fmt(a_max_theory),
-                "paper_source": PAPER_BENCHMARKS["slider_crank"]["source"],
-                "paper_lambda": nearest_lam,
+                "a_max_theory": fmt(a_max_theory)
             }
 
         elif sim_type == 'four_bar':
@@ -403,15 +366,10 @@ def validate():
             rocker_range_num    = sim_data.get("rocker_range_deg")
             max_loop_error      = sim_data.get("max_loop_error", 0.0)
 
-            # Paper benchmark (Erdman & Sandor example: 4, 1, 2.5, 3 -> ~39.34 deg)
-            ex = PAPER_BENCHMARKS["four_bar"]["grashof_example"]
-            paper_rocker = ex["rocker_range_deg"] if (d == ex["links"]["ground"] and a == ex["links"]["crank"] and b == ex["links"]["coupler"] and c == ex["links"]["rocker"]) else None
-
             rows.append({
                 "name": "Grashof Linkage Condition",
                 "theoretical": f"{grashof_res.get('type', 'Grashof')} (S+L ≤ P+Q)" if is_grashof else "Non-Grashof Class II",
                 "numerical": "PASS" if is_grashof else "NON-GRASHOF",
-                "paper": "--",
                 "abs_error": "--",
                 "pct_error": "--",
                 "pass": bool(is_grashof)
@@ -421,15 +379,13 @@ def validate():
                 rows.append(make_error_row(
                     "Rocker Angular Range Δθ₄ (°)",
                     rocker_range_theory, rocker_range_num,
-                    paper_rocker,
-                    0.05
+                    tolerance=0.05
                 ))
 
             rows.append({
                 "name": "Loop Closure Invariant ||B - C|| = b",
                 "theoretical": f"{b:.4f} m",
                 "numerical": f"Err < 1e-12 m" if max_loop_error < 1e-9 else f"{max_loop_error:.2e} m",
-                "paper": "--",
                 "abs_error": f"{max_loop_error:.2e}" if max_loop_error > 0 else "0.0000",
                 "pct_error": "0.00%" if max_loop_error < 1e-9 else f"{(max_loop_error/b)*100:.4f}%",
                 "pass": max_loop_error < 1e-6
@@ -438,19 +394,13 @@ def validate():
             summary = {
                 "grashof_condition": grashof_res.get("type", "Grashof"),
                 "rocker_range_theory": fmt(rocker_range_theory, 2),
-                "rocker_range_numerical": fmt(rocker_range_num, 2),
-                "paper_source": PAPER_BENCHMARKS["four_bar"]["source"],
-                "paper_source2": PAPER_BENCHMARKS["four_bar"]["source2"],
+                "rocker_range_numerical": fmt(rocker_range_num, 2)
             }
 
         return jsonify({
             "status": "ok",
             "rows": rows,
-            "summary": summary,
-            "paper_info": {
-                "source": paper_info.get("source", ""),
-                "description": paper_info.get("description", "")
-            }
+            "summary": summary
         })
 
     except Exception as e:

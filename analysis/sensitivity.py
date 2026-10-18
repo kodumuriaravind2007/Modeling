@@ -85,11 +85,11 @@ def run_sensitivity(sim_type, base_params, perturbation_pct, param_keys):
                 continue
                 
         # Perturb UP
-        params_up = copy.deepcopy(base_params)
+        params_up = dict(base_params)
         params_up[p_key] = p_base * (1.0 + dp)
         
         # Perturb DOWN
-        params_dn = copy.deepcopy(base_params)
+        params_dn = dict(base_params)
         params_dn[p_key] = p_base * (1.0 - dp)
         
         try:

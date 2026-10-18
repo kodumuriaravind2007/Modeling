@@ -567,3 +567,82 @@ export function solveClientDesignSweep(simType, constraints = {}, paramRanges = 
     attainable
   };
 }
+
+/**
+ * Executes instant client-side One-At-a-Time (OAT) sensitivity analysis (< 2 ms).
+ * 
+ * @param {string} simType Mechanism type key
+ * @param {object} baseParams Nominal design parameters { [k]: value }
+ * @param {number} perturbationPct Perturbation percentage (default: 10.0 for ±10%)
+ * @param {string[]} paramKeys Parameter keys to perturb
+ * @returns {object} SensitivityResult matching backend structure
+ */
+export function solveClientSensitivity(simType, baseParams = {}, perturbationPct = 10.0, paramKeys = []) {
+  const dp = Number(perturbationPct) / 100.0;
+  const baseMetrics = extractMetrics(simType, baseParams);
+  const metricKeys = Object.keys(baseMetrics).filter(k => typeof baseMetrics[k] === 'number');
+
+  const sensitivities = {};
+  const tornadoData = {};
+  metricKeys.forEach(m => {
+    sensitivities[m] = {};
+    tornadoData[m] = [];
+  });
+
+  const keys = paramKeys.length > 0 ? paramKeys : Object.keys(baseParams);
+
+  for (const pKey of keys) {
+    let pBase = Number(baseParams[pKey]);
+    if (isNaN(pBase)) continue;
+    if (pBase === 0) pBase = 1e-6;
+
+    const paramsUp = { ...baseParams, [pKey]: pBase * (1.0 + dp) };
+    const paramsDn = { ...baseParams, [pKey]: pBase * (1.0 - dp) };
+
+    const metricsUp = extractMetrics(simType, paramsUp);
+    const metricsDn = extractMetrics(simType, paramsDn);
+
+    for (const mKey of metricKeys) {
+      const mBase = Number(baseMetrics[mKey]) || 0;
+      const mUp = metricsUp[mKey] !== undefined ? Number(metricsUp[mKey]) : mBase;
+      const mDn = metricsDn[mKey] !== undefined ? Number(metricsDn[mKey]) : mBase;
+
+      const impactPos = mUp - mBase;
+      const impactNeg = mDn - mBase;
+
+      let Si = 0;
+      if (mBase !== 0) {
+        const dmNorm = (mUp - mDn) / Math.abs(mBase);
+        const dpNorm = (paramsUp[pKey] - paramsDn[pKey]) / Math.abs(pBase);
+        Si = dpNorm !== 0 ? dmNorm / dpNorm : 0;
+      } else {
+        const dpNorm = (paramsUp[pKey] - paramsDn[pKey]) / Math.abs(pBase);
+        Si = dpNorm !== 0 ? (mUp - mDn) / dpNorm : 0;
+      }
+
+      sensitivities[mKey][pKey] = Number(Si.toFixed(4));
+      tornadoData[mKey].push({
+        param: pKey,
+        pos_impact: Number(impactPos.toFixed(4)),
+        neg_impact: Number(impactNeg.toFixed(4)),
+        abs_max_impact: Number(Math.max(Math.abs(impactPos), Math.abs(impactNeg)).toFixed(4)),
+        S_i: Number(Si.toFixed(3))
+      });
+    }
+  }
+
+  const rankedParams = {};
+  for (const mKey of metricKeys) {
+    tornadoData[mKey].sort((a, b) => b.abs_max_impact - a.abs_max_impact);
+    rankedParams[mKey] = tornadoData[mKey].map(x => x.param);
+  }
+
+  return {
+    base_metrics: baseMetrics,
+    sensitivities,
+    ranked_params: rankedParams,
+    tornado_data: tornadoData,
+    metric_keys: metricKeys,
+    param_keys: keys
+  };
+}

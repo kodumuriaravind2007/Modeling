@@ -169,8 +169,10 @@ const FBDiagram = ({ simType, params = {}, width = 400, height = 350 }) => {
   };
 
   const renderFourBar = () => {
+    const fourBarX = Math.max(30, (width - 200) / 2);
+    const fourBarY = Math.min(height - 35, Math.max(140, height * 0.72));
     return (
-      <g transform="translate(100, 250)">
+      <g transform={`translate(${fourBarX}, ${fourBarY})`}>
         {/* Ground d */}
         <line x1="0" y1="0" x2="200" y2="0" stroke="#8195B8" strokeWidth="4" />
         {Array.from({ length: 11 }).map((_, i) => (

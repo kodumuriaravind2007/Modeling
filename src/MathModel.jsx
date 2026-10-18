@@ -149,7 +149,7 @@ const MathModel = ({ simType, params }) => {
           {/* Free Body Diagram */}
           <EquationCard title="Free Body Diagram" icon="🖼️">
             <div className="fbd-container">
-              <FBDiagram simType={simType} params={params} width={420} height={360} />
+              <FBDiagram simType={simType} params={params} width={420} height={250} />
             </div>
           </EquationCard>
 
@@ -163,7 +163,7 @@ const MathModel = ({ simType, params }) => {
               params={params}
               analogyValues={analogy}
               width={420}
-              height={280}
+              height={230}
             />
           </EquationCard>
 

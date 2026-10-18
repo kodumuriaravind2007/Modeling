@@ -19,6 +19,7 @@ from simulations.mechanics import (
     slider_crank_kinematics,
     four_bar_kinematics,
 )
+from simulations.kinematics_core import solve_four_bar_full_cycle
 from validation.analytical import (
     simple_pendulum_elliptic_period,
     compound_pendulum_period,
@@ -31,66 +32,139 @@ from validation.analytical import (
 # ─── Metric extraction helpers ────────────────────────────────────────────────
 
 def _extract_metrics_simple(params):
-    """Run simple pendulum and return scalar KPIs."""
-    r = simple_pendulum_rk45(
-        params["length"], params["mass"], params["gravity"],
-        params["damping"], params["theta0"], params.get("omega0", 0),
-        params.get("dt", 0.01), params.get("t_max", 15),
-    )
-    period = simple_pendulum_elliptic_period(params["length"], params["gravity"], params["theta0"])
-    total_E = r["total_E"]
-    energy_drift = float((max(total_E) - min(total_E)) / total_E[0]) if total_E[0] != 0 else 0.0
+    """Run simple pendulum and return scalar KPIs with high-speed RK4."""
+    L = float(params["length"])
+    m = float(params["mass"])
+    g = float(params["gravity"])
+    b = float(params.get("damping", 0.0))
+    th0_deg = float(params.get("theta0", 30.0))
+    w0 = float(params.get("omega0", 0.0))
+
+    period = simple_pendulum_elliptic_period(L, g, th0_deg)
+    th0 = np.radians(th0_deg)
+    b_eff = b / (m * L * L) if (m * L * L) > 0 else 0.0
+    t_max = min(max(period * 1.25, 0.5), 3.0)
+    dt = 0.005
+    n_steps = max(10, int(round(t_max / dt)))
+
+    th, w = th0, w0
+    max_w = abs(w)
+    E0 = 0.5 * m * (L * w)**2 + m * g * L * (1.0 - np.cos(th))
+    E_min = E_max = E0
+    g_over_L = g / L if L > 0 else 0.0
+
+    for _ in range(n_steps):
+        k1_t, k1_w = w, -g_over_L * np.sin(th) - b_eff * w
+        t_h, w_h = th + 0.5 * dt * k1_t, w + 0.5 * dt * k1_w
+        k2_t, k2_w = w_h, -g_over_L * np.sin(t_h) - b_eff * w_h
+        t_h2, w_h2 = th + 0.5 * dt * k2_t, w + 0.5 * dt * k2_w
+        k3_t, k3_w = w_h2, -g_over_L * np.sin(t_h2) - b_eff * w_h2
+        t_e, w_e = th + dt * k3_t, w + dt * k3_w
+        k4_t, k4_w = w_e, -g_over_L * np.sin(t_e) - b_eff * w_e
+
+        th += (dt / 6.0) * (k1_t + 2.0 * k2_t + 2.0 * k3_t + k4_t)
+        w += (dt / 6.0) * (k1_w + 2.0 * k2_w + 2.0 * k3_w + k4_w)
+
+        abs_w = abs(w)
+        if abs_w > max_w:
+            max_w = abs_w
+        E = 0.5 * m * (L * w)**2 + m * g * L * (1.0 - np.cos(th))
+        if E < E_min:
+            E_min = E
+        if E > E_max:
+            E_max = E
+
+    drift = (E_max - E_min) / E0 if E0 != 0 else 0.0
     return {
-        "period": period,
-        "energy_drift_pct": energy_drift * 100,
-        "max_omega": float(max(abs(w) for w in r["omega"])),
+        "period": float(period),
+        "energy_drift_pct": float(drift * 100.0),
+        "max_omega": float(max_w),
     }
 
 
 def _extract_metrics_compound(params):
-    r = compound_pendulum_rk45(
-        params["length"], params["mass"], params["gravity"],
-        params["damping"], params["theta0"], 0,
-        params.get("dt", 0.01), params.get("t_max", 15),
-    )
-    period = compound_pendulum_period(params["length"], params["gravity"])
-    total_E = r["total_E"]
-    energy_drift = float((max(total_E) - min(total_E)) / total_E[0]) if total_E[0] != 0 else 0.0
+    """Run compound pendulum and return scalar KPIs with high-speed RK4."""
+    L = float(params["length"])
+    m = float(params["mass"])
+    g = float(params["gravity"])
+    b = float(params.get("damping", 0.0))
+    th0_deg = float(params.get("theta0", 30.0))
+    w0 = float(params.get("omega0", 0.0))
+
+    period = compound_pendulum_period(L, g)
+    L_eff = (2.0 / 3.0) * L
+    th0 = np.radians(th0_deg)
+    d = L / 2.0
+    I_pivot = (1.0 / 3.0) * m * L * L if (m * L * L) > 0 else 1e-6
+    t_max = min(max(period * 1.25, 0.5), 3.0)
+    dt = 0.005
+    n_steps = max(10, int(round(t_max / dt)))
+
+    th, w = th0, w0
+    max_w = abs(w)
+    E0 = 0.5 * I_pivot * w**2 + m * g * d * (1.0 - np.cos(th))
+    E_min = E_max = E0
+    mgd = m * g * d
+
+    for _ in range(n_steps):
+        k1_t, k1_w = w, (-mgd * np.sin(th) - b * w) / I_pivot
+        t_h, w_h = th + 0.5 * dt * k1_t, w + 0.5 * dt * k1_w
+        k2_t, k2_w = w_h, (-mgd * np.sin(t_h) - b * w_h) / I_pivot
+        t_h2, w_h2 = th + 0.5 * dt * k2_t, w + 0.5 * dt * k2_w
+        k3_t, k3_w = w_h2, (-mgd * np.sin(t_h2) - b * w_h2) / I_pivot
+        t_e, w_e = th + dt * k3_t, w + dt * k3_w
+        k4_t, k4_w = w_e, (-mgd * np.sin(t_e) - b * w_e) / I_pivot
+
+        th += (dt / 6.0) * (k1_t + 2.0 * k2_t + 2.0 * k3_t + k4_t)
+        w += (dt / 6.0) * (k1_w + 2.0 * k2_w + 2.0 * k3_w + k4_w)
+
+        abs_w = abs(w)
+        if abs_w > max_w:
+            max_w = abs_w
+        E = 0.5 * I_pivot * w**2 + m * g * d * (1.0 - np.cos(th))
+        if E < E_min:
+            E_min = E
+        if E > E_max:
+            E_max = E
+
+    drift = (E_max - E_min) / E0 if E0 != 0 else 0.0
     return {
-        "period": period,
-        "L_eff": r["L_eff"],
-        "energy_drift_pct": energy_drift * 100,
-        "max_omega": float(max(abs(w) for w in r["omega"])),
+        "period": float(period),
+        "L_eff": float(L_eff),
+        "energy_drift_pct": float(drift * 100.0),
+        "max_omega": float(max_w),
     }
 
 
 def _extract_metrics_slider(params):
-    r = slider_crank_kinematics(
-        params["crank_length"], params["conn_length"],
-        params["crank_speed"], params.get("dt", 0.001), params.get("t_max", 2.0),
-    )
+    r = float(params["crank_length"])
+    l = float(params["conn_length"])
+    rpm = float(params["crank_speed"])
+    T = 60.0 / max(rpm, 1e-3)
+    dt = T / 180.0
+    res = slider_crank_kinematics(r, l, rpm, dt, T)
     return {
-        "stroke": r["stroke"],
-        "v_max": r["v_max"],
-        "a_max": r["a_max"],
-        "lambda": params["crank_length"] / params["conn_length"],
+        "stroke": res["stroke"],
+        "v_max": res["v_max"],
+        "a_max": res["a_max"],
+        "lambda": r / l,
     }
 
 
 def _extract_metrics_fourbar(params):
-    r = four_bar_kinematics(
-        params["link_ground"], params["link_crank"], params["link_coupler"],
-        params["link_rocker"], params["crank_speed"],
-        params.get("dt", 0.005), params.get("t_max", 5.0),
-    )
-    grashof = grashof_condition(
-        params["link_ground"], params["link_crank"],
-        params["link_coupler"], params["link_rocker"]
-    )
+    d = float(params["link_ground"])
+    a = float(params["link_crank"])
+    b = float(params["link_coupler"])
+    c = float(params["link_rocker"])
+    rpm = float(params["crank_speed"])
+    T = 60.0 / max(rpm, 1e-3)
+    dt = T / 180.0
+    res = solve_four_bar_full_cycle(d, a, b, c, rpm, dt, T)
+    grashof = grashof_condition(d, a, b, c)
     return {
-        "rocker_range_deg": r["rocker_range_deg"],
+        "rocker_range_deg": res["rocker_range_deg"],
         "grashof": grashof,
-        "max_omega4": float(max(abs(w) for w in r["omega4"])),
+        "max_omega4": float(max(abs(w) for w in res["omega4"])),
     }
 
 

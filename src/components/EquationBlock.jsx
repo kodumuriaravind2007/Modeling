@@ -30,11 +30,22 @@ export const EquationBlock = React.memo(({ latex, label, displayMode = true, cla
     }
   }, [latex, displayMode]);
 
+  if (!displayMode) {
+    return (
+      <span 
+        className={`equation-inline ${className}`.trim()}
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        dangerouslySetInnerHTML={{ __html: html }} 
+      />
+    );
+  }
+
   return (
-    <div className={`equation-block ${className}`.trim()}>
+    <div className={`equation-block ${className}`.trim()} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
       {label && <div className="equation-label">{label}</div>}
       <div 
         className="equation-content"
+        style={{ overflowX: 'auto', overflowY: 'visible', padding: '4px 0', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         dangerouslySetInnerHTML={{ __html: html }} 
       />
     </div>

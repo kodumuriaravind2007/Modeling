@@ -18,10 +18,9 @@ function fmt(val, decimals = 4) {
   return Number(val).toFixed(decimals);
 }
 
-function makeRow(name, theoretical, numerical, paper = null, tolerance = 0.05) {
+function makeRow(name, theoretical, numerical, tolerance = 0.05) {
   const th = theoretical !== null && theoretical !== undefined && !isNaN(theoretical) ? Number(theoretical) : null;
   const nu = numerical !== null && numerical !== undefined && !isNaN(numerical) ? Number(numerical) : null;
-  const pa = paper !== null && paper !== undefined && !isNaN(paper) ? Number(paper) : null;
 
   let abs_err = null;
   let pct_err = null;
@@ -31,48 +30,17 @@ function makeRow(name, theoretical, numerical, paper = null, tolerance = 0.05) {
     abs_err = Math.abs(nu - th);
     pct_err = (abs_err / Math.abs(th)) * 100;
     passed = pct_err < tolerance * 100;
-  } else if (th !== null && pa !== null && th !== 0) {
-    abs_err = Math.abs(pa - th);
-    pct_err = (abs_err / Math.abs(th)) * 100;
-    passed = pct_err < tolerance * 100;
   }
 
   return {
     name,
     theoretical: fmt(th),
     numerical: nu !== null ? fmt(nu) : '--',
-    paper: pa !== null ? fmt(pa) : '--',
     abs_error: abs_err !== null ? fmt(abs_err) : '--',
     pct_error: pct_err !== null ? `${pct_err.toFixed(2)}%` : '--',
-    pass: passed !== null ? Boolean(passed) : true
+    pass: passed !== null ? Boolean(passed) : (nu === null ? null : true)
   };
 }
-
-const PAPER_BENCHMARKS = {
-  simple_pendulum: {
-    source: 'Beléndez et al., Eur. J. Phys. 28 (2007) 901-905',
-    period_ratios: {
-      5: 1.00048, 10: 1.00191, 15: 1.0043, 20: 1.00767,
-      30: 1.01741, 45: 1.03997, 60: 1.07318, 75: 1.11894,
-      90: 1.18034, 120: 1.37288, 150: 1.86178, 170: 2.76672
-    }
-  },
-  compound_pendulum: {
-    source: 'Meirovitch, Fundamentals of Vibrations (2001)',
-    effective_length_ratio: 2 / 3,
-    I_ratio: 1 / 3
-  },
-  slider_crank: {
-    source: 'Norton, Design of Machinery, 5th ed. (2012)'
-  },
-  four_bar: {
-    source: 'Erdman, Sandor & Kota, Mechanism Design, 5th ed. (2001)',
-    grashof_example: {
-      links: { ground: 4.0, crank: 1.0, coupler: 2.5, rocker: 3.0 },
-      rocker_range_deg: 39.34
-    }
-  }
-};
 
 /**
  * Computes live validation metrics and error rows.
@@ -82,7 +50,6 @@ const PAPER_BENCHMARKS = {
 export function computeLiveValidation(simType, params = {}, simData = null) {
   const rows = [];
   let summary = {};
-  const pInfo = PAPER_BENCHMARKS[simType] || {};
 
   if (simType === 'simple_pendulum') {
     const L = Number(params.length) || 1.0;
@@ -101,33 +68,17 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
     // 4th-order Taylor series approximation
     const T_series = T_small * (1 + (1 / 16) * th0_rad * th0_rad + (11 / 3072) * Math.pow(th0_rad, 4));
 
-    // Research paper reference lookup
-    const ratioTable = pInfo.period_ratios || {};
-    let nearestAngle = 20;
-    let minDiff = Infinity;
-    for (const angleStr of Object.keys(ratioTable)) {
-      const angle = Number(angleStr);
-      const diff = Math.abs(angle - Math.abs(th0_deg));
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearestAngle = angle;
-      }
-    }
-    const paperRatio = ratioTable[nearestAngle] || 1.00767;
-    const T_paper = T_small * paperRatio;
-
     // Numerical period from simulation data (strictly measured, zero synthetic fallback)
     const T_numerical = simData?.time && simData?.theta
       ? measureNumericalPeriod(simData.time, simData.theta)
       : null;
 
-    rows.push(makeRow('Exact Elliptic Period T (s)', T_exact, T_numerical, T_paper, 0.02));
-    rows.push(makeRow('Series Approx. Period (s)', T_series, T_numerical, null, 0.03));
+    rows.push(makeRow('Exact Elliptic Period T (s)', T_exact, T_numerical, 0.02));
+    rows.push(makeRow('Series Approx. Period (s)', T_series, T_numerical, 0.03));
     rows.push({
       name: 'Small-Angle Period T₀ (s)',
       theoretical: fmt(T_small),
       numerical: '--',
-      paper: '--',
       abs_error: '--',
       pct_error: '--',
       pass: true
@@ -141,11 +92,11 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
       if (zeta < 1.0) {
         const omega_d = omega0 * Math.sqrt(1 - zeta * zeta);
         const T_damped = (2 * Math.PI) / omega_d;
-        rows.push(makeRow(`Damped Period Td (s) [ζ=${zeta.toFixed(3)}]`, T_damped, T_numerical, null, 0.05));
+        rows.push(makeRow(`Damped Period Td (s) [ζ=${zeta.toFixed(3)}]`, T_damped, T_numerical, 0.05));
       } else {
         rows.push({
           name: 'System is Overdamped (ζ ≥ 1)',
-          theoretical: '--', numerical: '--', paper: '--', abs_error: '--', pct_error: '--', pass: true
+          theoretical: '--', numerical: '--', abs_error: '--', pct_error: '--', pass: true
         });
       }
     }
@@ -156,7 +107,6 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
       T_exact: fmt(T_exact),
       T_series: fmt(T_series),
       T_numerical: fmt(T_numerical),
-      T_paper: fmt(T_paper),
       period_ratio: fmt(T_exact / T_small),
       energy_conservation: energyOk ? 'PASS' : 'FAIL',
       is_damped: b > 0
@@ -182,8 +132,8 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
 
     const L_eff_numerical = (T_numerical && T_numerical > 0) ? (g * T_numerical * T_numerical) / (4 * Math.PI * Math.PI) : null;
 
-    rows.push(makeRow('Theoretical Period T (s)', T_theory, T_numerical, null, 0.03));
-    rows.push(makeRow('Effective Length Leff (m)', L_eff, L_eff_numerical, (pInfo.effective_length_ratio || 0.6667) * L, 0.03));
+    rows.push(makeRow('Theoretical Period T (s)', T_theory, T_numerical, 0.03));
+    rows.push(makeRow('Effective Length Leff (m)', L_eff, L_eff_numerical, 0.03));
 
     if (b > 0) {
       const omega0 = Math.sqrt((m * g * d) / I_pivot);
@@ -191,7 +141,7 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
       if (zeta < 1.0) {
         const omega_d = omega0 * Math.sqrt(1 - zeta * zeta);
         const T_damped = (2 * Math.PI) / omega_d;
-        rows.push(makeRow(`Damped Period Td (s) [ζ=${zeta.toFixed(3)}]`, T_damped, T_numerical, null, 0.05));
+        rows.push(makeRow(`Damped Period Td (s) [ζ=${zeta.toFixed(3)}]`, T_damped, T_numerical, 0.05));
       }
     }
 
@@ -233,14 +183,14 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
     const v_nu = simData?.v_max !== undefined ? simData.v_max : null;
     const a_nu = simData?.a_max !== undefined ? simData.a_max : null;
 
-    rows.push(makeRow('Stroke Length S (m) [2r]', s_th, s_nu, 2 * r, 0.001));
-    rows.push(makeRow('Max Linear Velocity v_max (m/s)', v_th, v_nu, v_th, 0.03));
-    rows.push(makeRow('Max Linear Acceleration a_max (m/s²)', a_th, a_nu, a_th, 0.03));
+    rows.push(makeRow('Stroke Length S (m) [2r]', s_th, s_nu, 0.001));
+    rows.push(makeRow('Max Linear Velocity v_max (m/s)', v_th, v_nu, 0.03));
+    rows.push(makeRow('Max Linear Acceleration a_max (m/s²)', a_th, a_nu, 0.03));
     rows.push({
       name: 'Rod Obliquity Ratio λ (r/l)',
       theoretical: fmt(lambda),
       numerical: fmt(lambda),
-      paper: '--', abs_error: '--', pct_error: '--', pass: lambda < 1.0
+      abs_error: '--', pct_error: '--', pass: lambda < 1.0
     });
 
     summary = {
@@ -290,16 +240,13 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
       name: 'Grashof Linkage Condition',
       theoretical: gInfo.isGrashof ? `${gInfo.type} (S+L ≤ P+Q)` : 'Non-Grashof Class II',
       numerical: gInfo.isGrashof ? 'PASS' : 'NON-GRASHOF',
-      paper: '--', abs_error: '--', pct_error: '--', pass: gInfo.isGrashof
+      abs_error: '--', pct_error: '--', pass: gInfo.isGrashof
     });
 
     if (rockerRangeDeg !== null) {
-      const ex = pInfo.grashof_example;
-      const isBenchmark = (d === ex?.links?.ground && a === ex?.links?.crank && b === ex?.links?.coupler && c === ex?.links?.rocker);
       rows.push(makeRow(
         'Rocker Angular Range Δθ₄ (°)',
         rockerRangeDeg, nuRange,
-        isBenchmark ? ex.rocker_range_deg : null,
         0.05
       ));
     }
@@ -309,14 +256,13 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
         name: 'Min Transmission Angle μ_min (°)',
         theoretical: fmt(minMu, 2),
         numerical: simData?.transmission_angle_deg ? fmt(Math.min(...simData.transmission_angle_deg), 2) : '--',
-        paper: '--', abs_error: '--', pct_error: '--', pass: minMu >= 40.0
+        abs_error: '--', pct_error: '--', pass: minMu >= 40.0
       });
 
       rows.push({
         name: 'Loop Closure Invariant ||B - C|| = b',
         theoretical: `${b.toFixed(4)} m`,
         numerical: maxLoopErr < 1e-9 ? 'Err < 1e-12 m' : `${maxLoopErr.toExponential(2)} m`,
-        paper: '--',
         abs_error: maxLoopErr > 0 ? maxLoopErr.toExponential(2) : '0.0000',
         pct_error: maxLoopErr < 1e-9 ? '0.00%' : `${((maxLoopErr / b) * 100).toFixed(4)}%`,
         pass: maxLoopErr < 1e-6
@@ -336,7 +282,6 @@ export function computeLiveValidation(simType, params = {}, simData = null) {
     sim_type: simType,
     params,
     rows,
-    summary,
-    paper_info: pInfo
+    summary
   };
 }

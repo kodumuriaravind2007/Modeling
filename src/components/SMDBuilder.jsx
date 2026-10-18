@@ -5,10 +5,28 @@ import {
   solveGraphModal,
   computeGraphFRF,
   simulateGraphTimeDomain,
-  solveClassroomProblem
+  solveClassroomProblem,
+  generateMatlabScript
 } from '../core/smdSolver.js';
 import { EquationBlock } from './EquationBlock.jsx';
 import { SimulinkScopeModal } from './SimulinkScopeModal.jsx';
+import { MatrixDisplay } from './MatrixDisplay.jsx';
+
+export { generateMatlabScript };
+
+// Polyfill CanvasRenderingContext2D.prototype.roundRect if missing
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, radii = 0) {
+    const r = Math.min(Math.abs(Number(radii) || 0), Math.abs(w) / 2, Math.abs(h) / 2);
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    this.closePath();
+    return this;
+  };
+}
 
 // ── Classroom Problem Templates ("Sir's Class Problems") ───────────────────
 const PRESETS = {
@@ -16,15 +34,16 @@ const PRESETS = {
     name: 'Parallel Springs (k₁ + k₂)',
     shortLabel: 'Problem 1: Parallel (1-DOF)',
     badge: 'Classroom Exam Problem',
+    orientation: 'horizontal',
     description: 'Two parallel springs (k₁ = 150 N/m, k₂ = 250 N/m) attached to mass m₁ with damper c₁',
     nodes: [
       { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Wall' },
       { id: 'm1', type: 'mass', x: 460, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 150.0, yOffset: -18, label: 'k₁ = 150 N/m' },
-      { id: 'k2', type: 'spring', from: 'wall1', to: 'm1', k: 250.0, yOffset: 18, label: 'k₂ = 250 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 3.0, yOffset: 0, label: 'c₁ = 3.0 N·s/m' },
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 150.0, yOffset: -18, xOffset: -22, label: 'k₁ = 150 N/m' },
+      { id: 'k2', type: 'spring', from: 'wall1', to: 'm1', k: 250.0, yOffset: 18, xOffset: 22, label: 'k₂ = 250 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 3.0, yOffset: 0, xOffset: 0, label: 'c₁ = 3.0 N·s/m' },
       { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 20.0, waveform: 'sine', freq: 5.0, label: 'F(t) = 20·sin(5t)' }
     ]
   },
@@ -32,22 +51,24 @@ const PRESETS = {
     name: 'Series Springs (k₁k₂/(k₁+k₂))',
     shortLabel: 'Problem 2: Series (1-DOF)',
     badge: 'Classroom Exam Problem',
+    orientation: 'horizontal',
     description: 'Two springs in series with an intermediate massless junction node before the main mass',
     nodes: [
       { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Wall' },
       { id: 'junc1', type: 'mass', x: 280, y: 220, mass: 0.05, x0: 0.075, v0: 0.0, label: 'Junction J₁ (m ≈ 0)', isJunction: true },
-      { id: 'm1', type: 'mass', x: 500, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
+      { id: 'm1', type: 'mass', x: 480, y: 220, mass: 2.0, x0: 0.15, v0: 0.0, label: 'm₁ (2.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 200.0, yOffset: 0, label: 'k₁ = 200 N/m' },
-      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 200.0, yOffset: 0, label: 'k₂ = 200 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.5, yOffset: 18, label: 'c₁ = 1.5 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 200.0, yOffset: 0, xOffset: -22, label: 'k₁ = 200 N/m' },
+      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 200.0, yOffset: 0, xOffset: -22, label: 'k₂ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 1.5, yOffset: 20, xOffset: 22, label: 'c₁ = 1.5 N·s/m' }
     ]
   },
   series_parallel: {
     name: 'Series-Parallel Network',
     shortLabel: 'Problem 3: Series-Par. (1-DOF)',
     badge: 'Textbook Challenge',
+    orientation: 'horizontal',
     description: 'Combined spring network: Spring k₁ in series with a parallel pair (k₂ || k₃)',
     nodes: [
       { id: 'wall1', type: 'wall', x: 80, y: 220, label: 'Fixed Wall' },
@@ -55,10 +76,59 @@ const PRESETS = {
       { id: 'm1', type: 'mass', x: 520, y: 220, mass: 3.0, x0: 0.12, v0: 0.0, label: 'm₁ (3.0 kg)' }
     ],
     edges: [
-      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 300.0, yOffset: -18, label: 'k₁ = 300 N/m' },
-      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: -18, label: 'k₂ = 150 N/m' },
-      { id: 'k3', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: 0, label: 'k₃ = 150 N/m' },
-      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: 18, label: 'c₁ = 2.0 N·s/m' }
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'junc1', k: 300.0, yOffset: -18, xOffset: -22, label: 'k₁ = 300 N/m' },
+      { id: 'k2', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: -18, xOffset: -22, label: 'k₂ = 150 N/m' },
+      { id: 'k3', type: 'spring', from: 'junc1', to: 'm1', k: 150.0, yOffset: 0, xOffset: 0, label: 'k₃ = 150 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, yOffset: 18, xOffset: 22, label: 'c₁ = 2.0 N·s/m' }
+    ]
+  },
+  vertical_sdof: {
+    name: 'Vertical Hanging Mass (1-DOF)',
+    shortLabel: '4: Vert SDOF',
+    badge: 'Vertical Suspension',
+    orientation: 'vertical',
+    description: 'Single-DOF mass suspended vertically from fixed ceiling support with parallel spring and damper (no floor base)',
+    nodes: [
+      { id: 'wall1', type: 'wall', x: 360, y: 52, label: 'Ceiling Support', wallSide: 'top' },
+      { id: 'm1', type: 'mass', x: 360, y: 310, mass: 2.0, x0: 0.12, v0: 0.0, label: 'm₁ (2.0 kg)', showBase: false }
+    ],
+    edges: [
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 200.0, xOffset: -20, yOffset: -18, label: 'k₁ = 200 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.0, xOffset: 20, yOffset: 18, label: 'c₁ = 2.0 N·s/m' }
+    ]
+  },
+  vertical_2dof: {
+    name: 'Vertical 2-DOF Suspension (Two-Mass)',
+    shortLabel: '5: Vert 2-DOF',
+    badge: 'Multi-DOF Suspension',
+    orientation: 'vertical',
+    description: 'Two-stage vertical suspension with upper mass m₁ and lower mass m₂ suspended in series from ceiling',
+    nodes: [
+      { id: 'wall1', type: 'wall', x: 360, y: 48, label: 'Ceiling Support', wallSide: 'top' },
+      { id: 'm1', type: 'mass', x: 360, y: 185, mass: 3.0, x0: 0.10, v0: 0.0, label: 'm₁ Upper (3.0 kg)', showBase: false },
+      { id: 'm2', type: 'mass', x: 360, y: 320, mass: 1.5, x0: 0.15, v0: 0.0, label: 'm₂ Lower (1.5 kg)', showBase: false }
+    ],
+    edges: [
+      { id: 'k1', type: 'spring', from: 'wall1', to: 'm1', k: 250.0, xOffset: -30, label: 'k₁ = 250 N/m' },
+      { id: 'c1', type: 'damper', from: 'wall1', to: 'm1', c: 2.5, xOffset: 30, label: 'c₁ = 2.5 N·s/m' },
+      { id: 'k2', type: 'spring', from: 'm1', to: 'm2', k: 120.0, xOffset: -30, label: 'k₂ = 120 N/m' },
+      { id: 'c2', type: 'damper', from: 'm1', to: 'm2', c: 1.2, xOffset: 30, label: 'c₂ = 1.2 N·s/m' }
+    ]
+  },
+  vertical_ground: {
+    name: 'Vertical Base Isolator (Foundation)',
+    shortLabel: '6: Base Isolator',
+    badge: 'Vibration Isolation',
+    orientation: 'vertical',
+    description: 'Machine mass m₁ resting on resilient rubber isolators (spring k₁ and damper c₁) over a rigid foundation',
+    nodes: [
+      { id: 'm1', type: 'mass', x: 360, y: 175, mass: 5.0, x0: 0.0, v0: 0.0, label: 'm₁ Machine (5.0 kg)', showBase: false },
+      { id: 'wall1', type: 'wall', x: 360, y: 410, label: 'Rigid Foundation', wallSide: 'bottom' }
+    ],
+    edges: [
+      { id: 'k1', type: 'spring', from: 'm1', to: 'wall1', k: 400.0, xOffset: -30, label: 'k₁ = 400 N/m' },
+      { id: 'c1', type: 'damper', from: 'm1', to: 'wall1', c: 6.0, xOffset: 30, label: 'c₁ = 6.0 N·s/m' },
+      { id: 'F1', type: 'force', from: 'm1', to: 'm1', F0: 25.0, waveform: 'sine', freq: 8.94, label: 'F(t) = 25·sin(ωt)' }
     ]
   },
   underdamped_sdof: {
@@ -204,40 +274,40 @@ const PRESETS = {
 export function getDefaultSimulinkBlocks(massCount = 1) {
   if (massCount >= 2) {
     return {
-      src_f1: { id: 'src_f1', type: 'source', x: 75, y: 110, w: 72, h: 42, label: 'Force F₁(t)' },
-      sum1: { id: 'sum1', type: 'sum', x: 190, y: 110, r: 18, label: 'Sum Σ₁' },
-      gain_m1: { id: 'gain_m1', type: 'gain', x: 280, y: 110, w: 56, h: 42, label: '1/m₁' },
-      int_v1: { id: 'int_v1', type: 'integrator', x: 380, y: 110, w: 54, h: 44, label: '1/s' },
-      int_x1: { id: 'int_x1', type: 'integrator', x: 500, y: 110, w: 54, h: 44, label: '1/s' },
-      gain_c1: { id: 'gain_c1', type: 'gain_c', x: 380, y: 175, w: 52, h: 36, label: 'c₁' },
-      gain_k1: { id: 'gain_k1', type: 'gain_k', x: 500, y: 175, w: 52, h: 36, label: 'k₁' },
+      src_f1: { id: 'src_f1', type: 'source', x: 75, y: 75, w: 70, h: 38, label: 'Force F₁(t)' },
+      sum1: { id: 'sum1', type: 'sum', x: 180, y: 75, r: 16, label: 'Sum Σ₁' },
+      gain_m1: { id: 'gain_m1', type: 'gain', x: 265, y: 75, w: 52, h: 38, label: '1/m₁' },
+      int_v1: { id: 'int_v1', type: 'integrator', x: 365, y: 75, w: 50, h: 40, label: '1/s' },
+      int_x1: { id: 'int_x1', type: 'integrator', x: 480, y: 75, w: 50, h: 40, label: '1/s' },
+      gain_c1: { id: 'gain_c1', type: 'gain_c', x: 365, y: 120, w: 48, h: 30, label: 'c₁' },
+      gain_k1: { id: 'gain_k1', type: 'gain_k', x: 480, y: 158, w: 48, h: 30, label: 'k₁' },
 
-      gain_c12: { id: 'gain_c12', type: 'gain_c12', x: 330, y: 250, w: 58, h: 38, label: 'c₁₂' },
-      gain_k12: { id: 'gain_k12', type: 'gain_k', x: 440, y: 250, w: 58, h: 38, label: 'k₁₂' },
+      gain_c12: { id: 'gain_c12', type: 'gain_c12', x: 320, y: 196, w: 52, h: 34, label: 'c₁₂' },
+      gain_k12: { id: 'gain_k12', type: 'gain_k', x: 440, y: 234, w: 52, h: 34, label: 'k₁₂' },
 
-      sum2: { id: 'sum2', type: 'sum', x: 190, y: 365, r: 18, label: 'Sum Σ₂' },
-      gain_m2: { id: 'gain_m2', type: 'gain', x: 280, y: 365, w: 56, h: 42, label: '1/m₂' },
-      int_v2: { id: 'int_v2', type: 'integrator', x: 380, y: 365, w: 54, h: 44, label: '1/s' },
-      int_x2: { id: 'int_x2', type: 'integrator', x: 500, y: 365, w: 54, h: 44, label: '1/s' },
-      gain_c2: { id: 'gain_c2', type: 'gain_c', x: 380, y: 435, w: 52, h: 36, label: 'c₂' },
-      gain_k2: { id: 'gain_k2', type: 'gain_k', x: 500, y: 435, w: 52, h: 36, label: 'k₂' },
+      sum2: { id: 'sum2', type: 'sum', x: 180, y: 280, r: 16, label: 'Sum Σ₂' },
+      gain_m2: { id: 'gain_m2', type: 'gain', x: 265, y: 280, w: 52, h: 38, label: '1/m₂' },
+      int_v2: { id: 'int_v2', type: 'integrator', x: 365, y: 280, w: 50, h: 40, label: '1/s' },
+      int_x2: { id: 'int_x2', type: 'integrator', x: 480, y: 280, w: 50, h: 40, label: '1/s' },
+      gain_c2: { id: 'gain_c2', type: 'gain_c', x: 365, y: 328, w: 48, h: 30, label: 'c₂' },
+      gain_k2: { id: 'gain_k2', type: 'gain_k', x: 480, y: 364, w: 48, h: 30, label: 'k₂' },
 
-      mux: { id: 'mux', type: 'mux', x: 605, y: 235, w: 12, h: 285, label: 'Mux' },
-      scope: { id: 'scope', type: 'scope', x: 715, y: 235, w: 84, h: 72, label: 'Scope' },
-      knob: { id: 'knob', type: 'knob', x: 75, y: 250, r: 34, label: 'Force Dial' }
+      mux: { id: 'mux', type: 'mux', x: 580, y: 178, w: 10, h: 220, label: 'Mux' },
+      scope: { id: 'scope', type: 'scope', x: 690, y: 178, w: 82, h: 68, label: 'Scope' },
+      knob: { id: 'knob', type: 'knob', x: 75, y: 210, r: 30, label: 'Force Dial' }
     };
   }
   return {
-    src_f: { id: 'src_f', type: 'source', x: 80, y: 140, w: 76, h: 46, label: 'Force F(t)' },
-    sum: { id: 'sum', type: 'sum', x: 205, y: 140, r: 18, label: 'Sum Σ' },
-    gain_m: { id: 'gain_m', type: 'gain', x: 295, y: 140, w: 56, h: 44, label: '1/m' },
-    int_v: { id: 'int_v', type: 'integrator', x: 415, y: 140, w: 56, h: 46, label: '1/s' },
-    gain_c: { id: 'gain_c', type: 'gain_c', x: 415, y: 240, w: 56, h: 40, label: 'c' },
-    int_x: { id: 'int_x', type: 'integrator', x: 555, y: 140, w: 56, h: 46, label: '1/s' },
-    gain_k: { id: 'gain_k', type: 'gain_k', x: 415, y: 330, w: 56, h: 40, label: 'k' },
-    mux: { id: 'mux', type: 'mux', x: 655, y: 140, w: 10, h: 72, label: 'Mux' },
-    scope: { id: 'scope', type: 'scope', x: 730, y: 140, w: 72, h: 58, label: 'Scope' },
-    knob: { id: 'knob', type: 'knob', x: 95, y: 310, r: 38, label: 'Force Dial' }
+    src_f: { id: 'src_f', type: 'source', x: 75, y: 100, w: 72, h: 42, label: 'Force F(t)' },
+    sum: { id: 'sum', type: 'sum', x: 185, y: 100, r: 18, label: 'Sum Σ' },
+    gain_m: { id: 'gain_m', type: 'gain', x: 270, y: 100, w: 54, h: 40, label: '1/m' },
+    int_v: { id: 'int_v', type: 'integrator', x: 375, y: 100, w: 52, h: 42, label: '1/s' },
+    gain_c: { id: 'gain_c', type: 'gain_c', x: 375, y: 180, w: 52, h: 36, label: 'c' },
+    int_x: { id: 'int_x', type: 'integrator', x: 495, y: 100, w: 52, h: 42, label: '1/s' },
+    gain_k: { id: 'gain_k', type: 'gain_k', x: 495, y: 250, w: 52, h: 36, label: 'k' },
+    mux: { id: 'mux', type: 'mux', x: 595, y: 100, w: 10, h: 64, label: 'Mux' },
+    scope: { id: 'scope', type: 'scope', x: 695, y: 100, w: 76, h: 60, label: 'Scope' },
+    knob: { id: 'knob', type: 'knob', x: 80, y: 230, r: 32, label: 'Force Dial' }
   };
 }
 
@@ -262,7 +332,8 @@ export const SMDBuilder = ({ onClose }) => {
   const [simTimeState, setSimTimeState] = useState(0);
 
   // Canvas View Mode: 'physical' (Mass-Spring schematic) or 'simulink' (Block diagram)
-  const [canvasMode, setCanvasMode] = useState('simulink');
+  const [canvasMode, setCanvasMode] = useState('physical');
+  const [systemOrientation, setSystemOrientation] = useState(() => PRESETS.parallel_springs?.orientation || 'horizontal');
   const [copiedMatlab, setCopiedMatlab] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
   const backdropMouseDownRef = useRef(false);
@@ -469,228 +540,7 @@ export const SMDBuilder = ({ onClose }) => {
     }
   };
 
-// ── Robust Production-Grade MATLAB / Simulink Script Generator ───────────
-function generateMatlabScript(system, nodes, edges, classroomSolution) {
-  const primaryMassNodes = (nodes || []).filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'));
-  const isMultiDOF = primaryMassNodes.length > 1;
 
-  if (!isMultiDOF) {
-    const primaryMass = primaryMassNodes[0] || (nodes || []).find(n => n.type === 'mass') || { mass: 2.0 };
-    const m = Number(classroomSolution?.m) || Number(primaryMass.mass) || 2.0;
-    const k = Number(classroomSolution?.k_eq) || 150.0;
-    const c = Number(classroomSolution?.c_eq) || 2.0;
-    const forceEdge = (edges || []).find(e => e.type === 'force');
-    const F0 = forceEdge ? (Number(forceEdge.F0) || 10.0) : 10.0;
-    const freq = forceEdge ? (Number(forceEdge.freq) || 5.0) : 5.0;
-
-    return `% =========================================================================
-% MATLAB / SIMULINK 1-DOF MASS-SPRING-DAMPER DYNAMICAL SIMULATION
-% Canonical Formulation: m*x''(t) + c*x'(t) + k*x(t) = F(t)
-% Verified for MATLAB (R2018b-R2024b) & GNU Octave
-% =========================================================================
-
-clc; clear; close all;
-
-%% 1. Lumped Physical Parameters
-m = ${m.toFixed(2)};          % Lumped Mass (kg)
-k = ${k.toFixed(2)};        % Equivalent Stiffness (N/m)
-c = ${c.toFixed(2)};          % Viscous Damping Coefficient (N*s/m)
-F0 = ${F0.toFixed(2)};        % Peak Excitation Force Amplitude (N)
-omega_f = ${freq.toFixed(2)};   % Excitation Angular Frequency (rad/s)
-
-%% 2. Analytical Modal Dynamics & Damping Characterization
-omega_n = sqrt(k / m);
-fn = omega_n / (2 * pi);
-zeta = c / (2 * sqrt(m * k));
-omega_d = omega_n * sqrt(max(0, 1 - zeta^2));
-
-fprintf('-----------------------------------------------------\\n');
-fprintf('        CLASSROOM VIBRATION DYNAMICS ANALYSIS        \\n');
-fprintf('-----------------------------------------------------\\n');
-fprintf(' Undamped Natural Frequency (omega_n): %8.3f rad/s\\n', omega_n);
-fprintf(' Cyclic Natural Frequency   (f_n):     %8.3f Hz\\n', fn);
-fprintf(' Damping Ratio              (zeta):    %8.4f\\n', zeta);
-fprintf(' Damped Natural Frequency   (omega_d): %8.3f rad/s\\n', omega_d);
-if zeta < 1
-    fprintf(' Regime: Underdamped (Oscillatory Decay)\\n');
-elseif abs(zeta - 1) < 1e-4
-    fprintf(' Regime: Critically Damped (Fastest Return to Rest)\\n');
-else
-    fprintf(' Regime: Overdamped (Non-oscillatory Sluggish Return)\\n');
-end
-fprintf('-----------------------------------------------------\\n\\n');
-
-%% 3. State-Space Realization [A, B, C, D]
-% State vector: z = [x; x_dot]
-A = [0, 1;
-     -k/m, -c/m];
-B = [0;
-     1/m];
-C_out = [1, 0];
-D_out = 0;
-
-%% 4. Numerical Time Integration via ODE45 (Standard Solver, Zero Toolboxes Required)
-t_span = [0, 8.0];
-dt = 0.005;
-t_eval = t_span(1):dt:t_span(2);
-z0 = [${(primaryMass.x0 || 0.05).toFixed(3)}; 0.0]; % Initial condition: [x0 (m); v0 (m/s)]
-
-% Dynamic equations of motion: dz/dt = A*z + B*F(t)
-eom = @(t, z) A * z + B * (F0 * sin(omega_f * t));
-[t_out, z_out] = ode45(eom, t_eval, z0);
-
-x_disp = z_out(:, 1);
-x_vel  = z_out(:, 2);
-
-%% 5. Control System Toolbox Verification (if available)
-if exist('ss', 'file') == 2
-    sys = ss(A, B, C_out, D_out);
-    s = tf('s');
-    G = 1 / (m*s^2 + c*s + k);
-    disp('Continuous-Time Transfer Function G(s) = X(s)/F(s):');
-    disp(G);
-end
-
-%% 6. Engineering Publication Visualization
-figure('Name', 'Mass-Spring-Damper Dynamics', 'Color', 'w', 'Position', [100, 100, 900, 650]);
-
-% Subplot 1: Displacement Response
-subplot(2, 2, 1);
-plot(t_out, x_disp * 100, 'b-', 'LineWidth', 1.8);
-grid on;
-title('Displacement Response x(t)', 'FontWeight', 'bold');
-xlabel('Time t (s)'); ylabel('Displacement x (cm)');
-
-% Subplot 2: Velocity Response
-subplot(2, 2, 2);
-plot(t_out, x_vel, 'r-', 'LineWidth', 1.8);
-grid on;
-title('Velocity Response \\dot{x}(t)', 'FontWeight', 'bold');
-xlabel('Time t (s)'); ylabel('Velocity (m/s)');
-
-% Subplot 3: Phase Space Trajectory (State Portrait)
-subplot(2, 2, 3);
-plot(x_disp * 100, x_vel, 'Color', [0.2, 0.6, 0.2], 'LineWidth', 1.8);
-grid on;
-title('Phase Space Portrait (\\dot{x} vs x)', 'FontWeight', 'bold');
-xlabel('Displacement x (cm)'); ylabel('Velocity \\dot{x} (m/s)');
-
-% Subplot 4: Excitation Force Input
-subplot(2, 2, 4);
-plot(t_out, F0 * sin(omega_f * t_out), 'm-', 'LineWidth', 1.5);
-grid on;
-title('Excitation Force F(t) = F_0\\cdot sin(\\omega t)', 'FontWeight', 'bold');
-xlabel('Time t (s)'); ylabel('Force F(t) (N)');
-`;
-  }
-
-  // Multi-DOF (N >= 2) System
-  const M_mat = system && system.M ? system.M : [[2, 0], [0, 2]];
-  const C_mat = system && system.C ? system.C : [[0.5, 0], [0, 0.5]];
-  const K_mat = system && system.K ? system.K : [[100, -50], [-50, 100]];
-
-  const M_str = M_mat.map(row => row.map(v => v.toFixed(2)).join(', ')).join(';\n     ');
-  const C_str = C_mat.map(row => row.map(v => v.toFixed(2)).join(', ')).join(';\n     ');
-  const K_str = K_mat.map(row => row.map(v => v.toFixed(2)).join(', ')).join(';\n     ');
-
-  return `% =========================================================================
-% MATLAB / SIMULINK ${n}-DOF MASS-SPRING-DAMPER DYNAMICAL SIMULATION
-% Canonical Architecture: [M]*x''(t) + [C]*x'(t) + [K]*x(t) = {F(t)}
-% Verified for MATLAB (R2018b-R2024b) & GNU Octave
-% =========================================================================
-
-clc; clear; close all;
-
-%% 1. Lumped Mass, Damping, and Stiffness Matrices
-% Number of Degrees of Freedom: N = ${n}
-M = [${M_str}];
-
-C = [${C_str}];
-
-K = [${K_str}];
-
-N = size(M, 1);
-
-%% 2. Generalized Eigenvalue Problem (Natural Frequencies & Mode Shapes)
-% Undamped Free Vibration: [K]*phi = omega_n^2 * [M]*phi
-[phi, D] = eig(K, M);
-omega_sq = diag(D);
-omega_n = sqrt(abs(omega_sq));
-[omega_n, sortIdx] = sort(omega_n);
-phi = phi(:, sortIdx);
-
-% Mass-normalize mode shapes: phi_i' * M * phi_i = 1
-for i = 1:N
-    modal_mass = phi(:, i)' * M * phi(:, i);
-    if modal_mass > 0
-        phi(:, i) = phi(:, i) / sqrt(modal_mass);
-    end
-end
-
-fprintf('====================================================\\n');
-fprintf('     ${n}-DOF SYSTEM NATURAL FREQUENCIES & MODES    \\n');
-fprintf('====================================================\\n');
-for i = 1:N
-    fprintf(' Mode %d: omega_n = %8.3f rad/s   (f_n = %8.3f Hz)\\n', i, omega_n(i), omega_n(i) / (2*pi));
-end
-fprintf('====================================================\\n\\n');
-
-%% 3. State-Space Representation (2N x 2N Canonical Form)
-% State vector: z = [x_1; ...; x_N; x1_dot; ...; xN_dot]
-invM = inv(M);
-A = [zeros(N, N), eye(N, N);
-     -invM * K,   -invM * C];
-B = [zeros(N, N);
-     invM];
-C_out = [eye(N, N), zeros(N, N)]; % Measure all displacements
-D_out = zeros(N, N);
-
-%% 4. Numerical Time Integration via ODE45 (Standard Solver)
-t_span = [0, 8.0];
-dt = 0.005;
-t_eval = t_span(1):dt:t_span(2);
-
-% Initial displacements and velocities
-z0 = zeros(2*N, 1);
-${massNodes.map((m, idx) => `z0(${idx + 1}) = ${(m.x0 || 0).toFixed(3)}; % Initial x0 for Mass ${idx + 1} (m)`).join('\n')}
-
-% Harmonic excitation force on Mass 1
-F0 = 15.0;      % Force amplitude (N)
-omega_f = 5.0;  % Forcing frequency (rad/s)
-force_vector = @(t) [F0 * sin(omega_f * t); zeros(N - 1, 1)];
-
-eom = @(t, z) A * z + B * force_vector(t);
-[t_out, z_out] = ode45(eom, t_eval, z0);
-
-x_disp = z_out(:, 1:N);
-x_vel  = z_out(:, N+1:2*N);
-
-%% 5. Publication-Grade Multi-DOF Plotting
-figure('Name', '${n}-DOF Dynamic Response', 'Color', 'w', 'Position', [80, 80, 1000, 700]);
-
-% Subplot 1: Displacements over time
-subplot(2, 1, 1);
-hold on;
-colors = ['b', 'r', 'g', 'm', 'c'];
-for i = 1:N
-    c_idx = mod(i - 1, length(colors)) + 1;
-    plot(t_out, x_disp(:, i) * 100, colors(c_idx), 'LineWidth', 1.8, 'DisplayName', sprintf('Mass %d (x_%d)', i, i));
-end
-hold off; grid on;
-title('${n}-DOF System Transient Displacement Responses', 'FontWeight', 'bold');
-xlabel('Time t (s)'); ylabel('Displacement x_i(t) (cm)');
-legend('Location', 'northeast');
-
-% Subplot 2: Mode Shapes Visualization
-subplot(2, 1, 2);
-bar(phi);
-grid on;
-title('Mass-Normalized Modal Matrix [\\Phi] Mode Shapes', 'FontWeight', 'bold');
-xlabel('Degree of Freedom / Mass Index');
-ylabel('Relative Modal Displacement');
-legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Location', 'northeast');
-`;
-}
 
   // ── Copy MATLAB / Simulink Code Script ─────────────────────────────────────
   const handleCopyMatlabScript = () => {
@@ -751,46 +601,394 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     setActivePreset(key);
     setNodes(JSON.parse(JSON.stringify(PRESETS[key].nodes)));
     setEdges(JSON.parse(JSON.stringify(PRESETS[key].edges)));
+    setSystemOrientation(PRESETS[key].orientation || 'horizontal');
     setSelectedId(PRESETS[key].nodes.find(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc'))?.id || PRESETS[key].nodes.find(n => n.type === 'mass')?.id || null);
+    const pMasses = PRESETS[key].nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc')).length;
+    setSimulinkBlocks(getDefaultSimulinkBlocks(pMasses));
     simTimeRef.current = 0;
+    setSimTimeState(0);
+    setIsPlaying(false);
+  };
+
+  const handleSwitchToPhysicalMode = () => {
+    setCanvasMode('physical');
+    if (!nodes || nodes.length === 0 || !nodes.some(n => n.type === 'mass')) {
+      const defaultKey = activePreset && PRESETS[activePreset] ? activePreset : 'parallel_springs';
+      loadPreset(defaultKey);
+    }
+  };
+
+  const handleSetOrientation = (newOrient) => {
+    setSystemOrientation(newOrient);
+    if (newOrient === 'vertical') {
+      const hasJunction = nodes.some(n => n.type === 'mass' && (n.isJunction || n.id.startsWith('junc')));
+
+      // 1. Arrange nodes vertically along centerline x = 360
+      setNodes(prev => {
+        const bottomWalls = prev.filter(n => n.type === 'wall' && (n.wallSide === 'bottom' || n.wallSide === 'right'));
+        const hasFloorWall = bottomWalls.length > 0;
+        const masses = prev.filter(n => n.type !== 'wall');
+
+        return prev.map((node) => {
+          if (node.type === 'wall') {
+            const isBottom = bottomWalls.some(w => w.id === node.id);
+            const wallSide = isBottom ? 'bottom' : 'top';
+            return {
+              ...node,
+              wallSide,
+              x: 360,
+              y: wallSide === 'top' ? 48 : 405,
+              label: node.label?.includes('Wall') || node.label?.includes('Base') || node.label?.includes('Support') || node.label?.includes('Anchor')
+                ? (wallSide === 'top' ? 'Ceiling Support' : 'Floor Anchor')
+                : node.label
+            };
+          }
+          if (node.isJunction || node.id.startsWith('junc')) {
+            // Intermediate series junction placed at (338, 185) on the series branch lane
+            return {
+              ...node,
+              x: 338,
+              y: 185,
+              showBase: false
+            };
+          }
+          const primaryMasses = masses.filter(m => !m.isJunction && !m.id.startsWith('junc'));
+          const massIdx = primaryMasses.findIndex(m => m.id === node.id);
+          const totalMasses = primaryMasses.length;
+          let y = 310;
+          if (totalMasses === 1) {
+            y = hasFloorWall ? 220 : 310;
+          } else if (totalMasses === 2) {
+            y = massIdx === 0 ? 175 : 310;
+          } else if (totalMasses === 3) {
+            y = massIdx === 0 ? 135 : (massIdx === 1 ? 225 : 315);
+          } else {
+            const minY = 115;
+            const maxY = hasFloorWall ? 320 : 330;
+            const step = (maxY - minY) / (totalMasses - 1);
+            y = Math.round(minY + massIdx * step);
+          }
+          return {
+            ...node,
+            x: 360,
+            y,
+            showBase: false
+          };
+        });
+      });
+
+      // 2. Redistribute parallel edges with symmetrical xOffsets
+      setEdges(prevEdges => {
+        if (hasJunction) {
+          // In series configurations: series branch (k1, k2) is at xOffset = -22, bypass damper (c1) is at xOffset = 22
+          return prevEdges.map(e => {
+            if (e.type === 'force') return e;
+            const connectsToJunc = e.from.startsWith('junc') || e.to.startsWith('junc');
+            if (connectsToJunc) {
+              return { ...e, xOffset: -22, yOffset: undefined };
+            }
+            // Bypass edge from wall to primary mass
+            return { ...e, xOffset: 22, yOffset: undefined };
+          });
+        }
+
+        const pairGroups = new Map();
+        prevEdges.forEach(e => {
+          const key = [e.from, e.to].sort().join('--');
+          if (!pairGroups.has(key)) pairGroups.set(key, []);
+          pairGroups.get(key).push(e);
+        });
+
+        return prevEdges.map(e => {
+          if (e.type === 'force') return e;
+          const key = [e.from, e.to].sort().join('--');
+          const group = pairGroups.get(key) || [];
+          const idx = group.indexOf(e);
+          const count = group.length;
+
+          let newXOffset = 0;
+          if (count === 2) {
+            newXOffset = idx === 0 ? -20 : 20;
+          } else if (count === 3) {
+            newXOffset = idx === 0 ? -22 : (idx === 1 ? 0 : 22);
+          } else if (count > 3) {
+            newXOffset = -30 + (idx * (60 / (count - 1)));
+          }
+          return { ...e, xOffset: newXOffset, yOffset: undefined };
+        });
+      });
+    } else {
+      const hasJunction = nodes.some(n => n.type === 'mass' && (n.isJunction || n.id.startsWith('junc')));
+
+      // 1. Arrange nodes horizontally along centerline y = 220
+      setNodes(prev => {
+        const rightWalls = prev.filter(n => n.type === 'wall' && (n.wallSide === 'right' || n.wallSide === 'bottom'));
+        const masses = prev.filter(n => n.type !== 'wall');
+
+        return prev.map((node) => {
+          if (node.type === 'wall') {
+            const isRight = rightWalls.some(w => w.id === node.id);
+            const wallSide = isRight ? 'right' : 'left';
+            return {
+              ...node,
+              wallSide,
+              x: wallSide === 'right' ? 640 : 80,
+              y: 220,
+              label: node.label?.includes('Support') || node.label?.includes('Anchor') || node.label?.includes('Wall') || node.label?.includes('Base')
+                ? (wallSide === 'right' ? 'Right Base' : 'Fixed Wall')
+                : node.label
+            };
+          }
+          if (node.isJunction || node.id.startsWith('junc')) {
+            return {
+              ...node,
+              x: 280,
+              y: 220,
+              showBase: false
+            };
+          }
+          const primaryMasses = masses.filter(m => !m.isJunction && !m.id.startsWith('junc'));
+          const massIdx = primaryMasses.findIndex(m => m.id === node.id);
+          const totalMasses = primaryMasses.length;
+          let x = 440;
+          if (totalMasses === 1) {
+            x = hasJunction ? 480 : 440;
+          } else if (totalMasses === 2) {
+            x = massIdx === 0 ? 300 : 530;
+          } else {
+            x = 240 + massIdx * 170;
+          }
+          return {
+            ...node,
+            x,
+            y: 220,
+            showBase: true
+          };
+        });
+      });
+
+      // 2. Redistribute parallel edges with symmetrical yOffsets
+      setEdges(prevEdges => {
+        if (hasJunction) {
+          return prevEdges.map(e => {
+            if (e.type === 'force') return e;
+            const connectsToJunc = e.from.startsWith('junc') || e.to.startsWith('junc');
+            if (connectsToJunc) {
+              return { ...e, yOffset: 0, xOffset: undefined };
+            }
+            return { ...e, yOffset: 20, xOffset: undefined };
+          });
+        }
+
+        const pairGroups = new Map();
+        prevEdges.forEach(e => {
+          const key = [e.from, e.to].sort().join('--');
+          if (!pairGroups.has(key)) pairGroups.set(key, []);
+          pairGroups.get(key).push(e);
+        });
+
+        return prevEdges.map(e => {
+          if (e.type === 'force') return e;
+          const key = [e.from, e.to].sort().join('--');
+          const group = pairGroups.get(key) || [];
+          const idx = group.indexOf(e);
+          const count = group.length;
+
+          let newYOffset = 0;
+          if (count === 2) {
+            newYOffset = idx === 0 ? -18 : 18;
+          } else if (count === 3) {
+            newYOffset = idx === 0 ? -20 : (idx === 1 ? 0 : 20);
+          } else if (count > 3) {
+            newYOffset = -22 + (idx * (44 / (count - 1)));
+          }
+          return { ...e, yOffset: newYOffset, xOffset: undefined };
+        });
+      });
+    }
   };
 
   // ── Add New Node / Component ("Catch and Drop" / Palette Click) ─────────────
   const addNode = (type, wallSide = 'left') => {
+    // Switch to physical mechanism canvas so user visually sees the addition
+    if (canvasMode !== 'physical') {
+      setCanvasMode('physical');
+    }
+
     const isMass = type === 'mass';
-    const isRightWall = type === 'wall' && wallSide === 'right';
+    const isVertical = systemOrientation === 'vertical';
     const count = nodes.filter(n => n.type === type).length + 1;
     const id = `${type}${Date.now().toString().slice(-4)}`;
 
-    // Position intelligently so blocks don't overlap and stay level on y = 220
-    const maxX = nodes.reduce((max, n) => Math.max(max, n.x), 60);
-    let newX;
-    if (isRightWall) {
-      newX = Math.min(Math.max(maxX + 160, 560), 720);
-    } else if (isMass) {
-      newX = nodes.length === 0 ? 280 : Math.min(maxX + 160, 640);
+    let newX = 360;
+    let newY = 220;
+    let wallsToShift = [];
+
+    const massNodes = nodes.filter(n => n.type === 'mass');
+
+    if (isVertical) {
+      newX = 360;
+      if (isMass) {
+        const existingMasses = nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id?.startsWith('junc'));
+        const totalMasses = existingMasses.length + 1;
+        const hasFloorWall = nodes.some(n => n.type === 'wall' && (n.wallSide === 'bottom' || n.y > 250));
+
+        let targetYs = [];
+        if (totalMasses === 1) {
+          targetYs = [hasFloorWall ? 220 : 310];
+        } else if (totalMasses === 2) {
+          targetYs = [175, 310];
+        } else if (totalMasses === 3) {
+          targetYs = [135, 225, 315];
+        } else {
+          const minY = 115;
+          const maxY = hasFloorWall ? 320 : 330;
+          const step = (maxY - minY) / (totalMasses - 1);
+          for (let i = 0; i < totalMasses; i++) {
+            targetYs.push(Math.round(minY + i * step));
+          }
+        }
+        newY = targetYs[totalMasses - 1];
+      } else if (type === 'wall') {
+        const isBottom = wallSide === 'bottom';
+        newY = isBottom ? 405 : 48;
+      }
     } else {
-      newX = 80;
+      newY = 220;
+      if (isMass) {
+        if (massNodes.length === 0) {
+          const leftWall = nodes.find(n => n.type === 'wall' && (n.wallSide === 'left' || n.x < 300));
+          newX = leftWall ? leftWall.x + 180 : 260;
+        } else {
+          const lastMassX = Math.max(...massNodes.map(n => n.x));
+          newX = lastMassX + 160;
+        }
+        // Push any right anchor wall outward so mass is placed comfortably between elements
+        wallsToShift = nodes.filter(n => n.type === 'wall' && (n.wallSide === 'right' || n.x > 300) && n.x <= newX + 100);
+      } else if (type === 'wall') {
+        const isRightWall = wallSide === 'right';
+        const maxX = nodes.reduce((max, n) => Math.max(max, n.x), 60);
+        newX = isRightWall ? Math.max(maxX + 160, 560) : 80;
+      }
     }
+
+    const defaultWallSide = isVertical
+      ? (wallSide === 'bottom' ? 'bottom' : 'top')
+      : (wallSide === 'right' ? 'right' : 'left');
+
+    const defaultLabel = isMass
+      ? `m_${count}`
+      : isVertical
+        ? (defaultWallSide === 'bottom' ? 'Floor Anchor' : (count === 1 ? 'Ceiling Support' : `Ceiling ${count}`))
+        : (defaultWallSide === 'right' ? 'Right Base' : (count === 1 ? 'Fixed Base' : `Wall ${count}`));
 
     const newNode = {
       id,
       type,
       x: newX,
-      y: 220,
+      y: newY,
       mass: isMass ? 2.0 : undefined,
       x0: isMass ? 0.05 : undefined,
       v0: 0.0,
-      label: isMass ? `m_${count}` : (isRightWall ? 'Right Base' : (count === 1 ? 'Fixed Base' : `Wall ${count}`)),
-      wallSide: type === 'wall' ? wallSide : undefined
+      showBase: isMass ? !isVertical : undefined,
+      label: defaultLabel,
+      wallSide: type === 'wall' ? defaultWallSide : undefined
     };
-    setNodes(prev => [...prev, newNode]);
+
+    setNodes(prev => {
+      let updated = prev;
+      if (isVertical) {
+        if (isMass) {
+          const existingMasses = prev.filter(n => n.type === 'mass' && !n.isJunction && !n.id?.startsWith('junc'));
+          const sortedExisting = [...existingMasses].sort((a, b) => a.y - b.y);
+          const totalMasses = existingMasses.length + 1;
+          const hasFloorWall = prev.some(n => n.type === 'wall' && (n.wallSide === 'bottom' || n.y > 250));
+
+          let targetYs = [];
+          if (totalMasses === 1) {
+            targetYs = [hasFloorWall ? 220 : 310];
+          } else if (totalMasses === 2) {
+            targetYs = [175, 310];
+          } else if (totalMasses === 3) {
+            targetYs = [135, 225, 315];
+          } else {
+            const minY = 115;
+            const maxY = hasFloorWall ? 320 : 330;
+            const step = (maxY - minY) / (totalMasses - 1);
+            for (let i = 0; i < totalMasses; i++) {
+              targetYs.push(Math.round(minY + i * step));
+            }
+          }
+
+          updated = prev.map(n => {
+            if (n.type === 'wall') {
+              if (n.wallSide === 'bottom' || n.y > 250) {
+                return { ...n, x: 360, y: 405 };
+              }
+              if (n.wallSide === 'top' || n.y <= 250) {
+                return { ...n, x: 360, y: 48 };
+              }
+            }
+            if (n.type === 'mass' && !n.isJunction && !n.id?.startsWith('junc')) {
+              const idx = sortedExisting.findIndex(m => m.id === n.id);
+              if (idx >= 0 && idx < targetYs.length - 1) {
+                return { ...n, x: 360, y: targetYs[idx], showBase: false };
+              }
+            }
+            return n;
+          });
+        }
+      } else {
+        if (wallsToShift.length > 0) {
+          const shiftIds = new Set(wallsToShift.map(w => w.id));
+          updated = updated.map(n => {
+            if (shiftIds.has(n.id)) {
+              return { ...n, x: newX + 160 };
+            }
+            return n;
+          });
+        }
+      }
+      return [...updated, newNode];
+    });
+
+    setIsPlaying(false);
+    simTimeRef.current = 0;
+    setSimTimeState(0);
     setSelectedId(id);
     setActivePreset('custom');
   };
 
   const handleAlignNodes = () => {
-    setNodes(prev => prev.map(n => ({ ...n, y: 220 })));
+    if (systemOrientation === 'vertical') {
+      setNodes(prev => {
+        const bottomWalls = prev.filter(n => n.type === 'wall' && (n.wallSide === 'bottom' || n.wallSide === 'right' || n.y > 250));
+        const hasFloorWall = bottomWalls.length > 0;
+        const primaryMasses = prev.filter(n => n.type === 'mass' && !n.isJunction && !n.id?.startsWith('junc')).sort((a, b) => a.y - b.y);
+        const totalMasses = primaryMasses.length;
+        return prev.map(n => {
+          if (n.type === 'wall') {
+            const isBottom = bottomWalls.some(w => w.id === n.id);
+            return { ...n, x: 360, y: isBottom ? 405 : 48 };
+          }
+          if (n.type === 'mass' && !n.isJunction && !n.id?.startsWith('junc')) {
+            const massIdx = primaryMasses.findIndex(m => m.id === n.id);
+            let y = 310;
+            if (totalMasses === 1) y = hasFloorWall ? 220 : 310;
+            else if (totalMasses === 2) y = massIdx === 0 ? 175 : 310;
+            else if (totalMasses === 3) y = massIdx === 0 ? 135 : (massIdx === 1 ? 225 : 315);
+            else {
+              const minY = 115, maxY = hasFloorWall ? 320 : 330;
+              y = Math.round(minY + massIdx * ((maxY - minY) / (totalMasses - 1)));
+            }
+            return { ...n, x: 360, y, showBase: false };
+          }
+          return { ...n, x: 360 };
+        });
+      });
+    } else {
+      setNodes(prev => prev.map(n => ({ ...n, y: 220 })));
+    }
   };
 
   // ── Add Component Edge between Nodes ───────────────────────────────────────
@@ -810,6 +1008,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
             freq: 5.0,
             label: `F(t) = 10·sin(5t)`
           };
+          setIsPlaying(false);
+          simTimeRef.current = 0;
+          setSimTimeState(0);
           setEdges(prev => [...prev, newForce]);
           setSelectedId(edgeId);
           setWiringTool(null);
@@ -827,26 +1028,40 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         }
         const edgeId = `${wiringTool[0]}${Date.now().toString().slice(-4)}`;
 
-        // Parallel edge detection for clean vertical offset
+        // Parallel edge detection for clean offset
+        const isVertical = systemOrientation === 'vertical';
         const parallelEdges = edges.filter(e =>
           (e.from === wireSource && e.to === nodeId) || (e.from === nodeId && e.to === wireSource)
         );
+        let xOffset = 0;
         let yOffset = 0;
-        if (parallelEdges.length === 1) {
-          yOffset = 18;
-          setEdges(prev => prev.map(e => e.id === parallelEdges[0].id ? { ...e, yOffset: -18 } : e));
-        } else if (parallelEdges.length >= 2) {
-          yOffset = parallelEdges.length % 2 === 0 ? 18 : -18;
+        if (isVertical) {
+          if (parallelEdges.length === 1) {
+            xOffset = 30;
+            setEdges(prev => prev.map(e => e.id === parallelEdges[0].id ? { ...e, xOffset: -30, yOffset: undefined } : e));
+          } else if (parallelEdges.length >= 2) {
+            xOffset = parallelEdges.length % 2 === 0 ? 30 : -30;
+          }
+        } else {
+          if (parallelEdges.length === 1) {
+            yOffset = 22;
+            setEdges(prev => prev.map(e => e.id === parallelEdges[0].id ? { ...e, yOffset: -22, xOffset: undefined } : e));
+          } else if (parallelEdges.length >= 2) {
+            yOffset = parallelEdges.length % 2 === 0 ? 22 : -22;
+          }
         }
 
         let newEdge;
         if (wiringTool === 'spring') {
-          newEdge = { id: edgeId, type: 'spring', from: wireSource, to: nodeId, k: 150.0, yOffset, label: `k = 150 N/m` };
+          newEdge = { id: edgeId, type: 'spring', from: wireSource, to: nodeId, k: 150.0, xOffset: isVertical ? xOffset : undefined, yOffset: isVertical ? undefined : yOffset, label: `k = 150 N/m` };
         } else if (wiringTool === 'damper') {
-          newEdge = { id: edgeId, type: 'damper', from: wireSource, to: nodeId, c: 2.0, yOffset, label: `c = 2.0 N·s/m` };
+          newEdge = { id: edgeId, type: 'damper', from: wireSource, to: nodeId, c: 2.0, xOffset: isVertical ? xOffset : undefined, yOffset: isVertical ? undefined : yOffset, label: `c = 2.0 N·s/m` };
         }
 
         if (newEdge) {
+          setIsPlaying(false);
+          simTimeRef.current = 0;
+          setSimTimeState(0);
           setEdges(prev => [...prev, newEdge]);
           setSelectedId(edgeId);
           setActivePreset('custom');
@@ -916,6 +1131,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
       const nh = isJunc ? 50 : (isMass ? 56 : 96);
       const pos = currentPosMapRef.current.get(node.id) || node;
       if (mx >= pos.x - nw / 2 && mx <= pos.x + nw / 2 && my >= pos.y - nh / 2 && my <= pos.y + nh / 2) {
+        setIsPlaying(false);
+        simTimeRef.current = 0;
+        setSimTimeState(0);
         draggingNodeIdRef.current = node.id;
         setDraggingNodeId(node.id);
         dragOffsetRef.current = { x: mx - node.x, y: my - node.y };
@@ -1047,12 +1265,25 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     if (!draggingNodeIdRef.current) return;
     hasDraggedRef.current = true;
 
-    const newX = Math.max(30, Math.min(canvas.width - 40, mx - dragOffsetRef.current.x));
+    let newX = Math.max(30, Math.min(canvas.width - 40, mx - dragOffsetRef.current.x));
     let newY = Math.max(40, Math.min(canvas.height - 40, my - dragOffsetRef.current.y));
 
-    // Snap to horizontal centerline (y = 220) if within 14px for neat alignment
-    if (Math.abs(newY - 220) < 14) {
-      newY = 220;
+    const draggedNode = nodes.find(n => n.id === draggingNodeIdRef.current);
+
+    // Strictly 1D axis locking: prevents diagonal swinging or slanted pendulums
+    if (systemOrientation === 'vertical') {
+      newX = (draggedNode?.isJunction || draggedNode?.id?.startsWith('junc')) ? (draggedNode.x || 338) : 360;
+      if (draggedNode?.type === 'wall') {
+        const isBottom = draggedNode.wallSide === 'bottom' || draggedNode.y > 250;
+        newY = isBottom
+          ? Math.max(250, Math.min(canvas.height - 35, my - dragOffsetRef.current.y))
+          : Math.max(35, Math.min(100, my - dragOffsetRef.current.y));
+      } else {
+        newY = Math.max(90, Math.min(canvas.height - 65, my - dragOffsetRef.current.y));
+      }
+    } else {
+      newY = (draggedNode?.isJunction || draggedNode?.id?.startsWith('junc')) ? (draggedNode.y || 220) : 220;
+      newX = Math.max(140, Math.min(canvas.width - 60, mx - dragOffsetRef.current.x));
     }
 
     setNodes(prev => prev.map(n => n.id === draggingNodeIdRef.current ? { ...n, x: newX, y: newY } : n));
@@ -1065,6 +1296,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     if (draggingNodeIdRef.current) {
       draggingNodeIdRef.current = null;
       setDraggingNodeId(null);
+      setIsPlaying(false);
+      simTimeRef.current = 0;
+      setSimTimeState(0);
     }
   };
 
@@ -1089,136 +1323,278 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     let lastTime = performance.now();
 
     const render = (now) => {
-      const deltaSec = Math.min((now - lastTime) / 1000, 0.1);
-      lastTime = now;
+      try {
+        const deltaSec = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
 
-      if (isPlaying) {
-        simTimeRef.current += deltaSec * playbackSpeed;
-        if (simTimeRef.current > 8.0) simTimeRef.current = 0;
-        if (Math.abs(simTimeRef.current - lastStateTimeRef.current) > 0.08) {
-          lastStateTimeRef.current = simTimeRef.current;
-          setSimTimeState(simTimeRef.current);
+        if (isPlaying) {
+          simTimeRef.current += deltaSec * playbackSpeed;
+          if (simTimeRef.current > 8.0) simTimeRef.current = 0;
+          if (Math.abs(simTimeRef.current - lastStateTimeRef.current) > 0.08) {
+            lastStateTimeRef.current = simTimeRef.current;
+            setSimTimeState(simTimeRef.current);
+          }
         }
-      }
 
-      const t = simTimeRef.current;
-      const dt = 0.005;
-      const stepIdx = Math.min(simData.time.length - 1, Math.floor(t / dt));
+        const safeT = Math.max(0, Math.min(8.0, Number.isFinite(simTimeRef.current) ? simTimeRef.current : 0));
+        const dt = 0.005;
+        const totalSteps = simData?.time?.length || 1;
+        const stepIdx = Math.max(0, Math.min(totalSteps - 1, Math.floor(safeT / dt)));
 
-      const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 800;
-      const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 500;
-      if (canvas.width !== parentW || canvas.height !== parentH) {
-        canvas.width = parentW;
-        canvas.height = parentH;
-      }
-      const w = canvas.width;
-      const h = canvas.height;
+        const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 800;
+        const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 500;
+        if (canvas.width !== parentW || canvas.height !== parentH) {
+          canvas.width = parentW;
+          canvas.height = parentH;
+        }
+        const w = canvas.width;
+        const h = canvas.height;
 
-      ctx.clearRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
 
-      if (canvasMode === 'simulink') {
-        drawSimulinkCanvas(
-          ctx,
-          w,
-          h,
-          t,
-          stepIdx,
-          nodes,
-          edges,
-          classroomSolution,
-          simData,
-          simulinkBlocks,
-          selectedId,
-          isPlaying,
-          hoveredNodeId,
-          system,
-          modalData
-        );
-        animFrameRef.current = requestAnimationFrame(render);
-        return;
-      }
+        if (canvasMode === 'simulink') {
+          drawSimulinkCanvas(
+            ctx,
+            w,
+            h,
+            safeT,
+            stepIdx,
+            nodes,
+            edges,
+            classroomSolution,
+            simData,
+            simulinkBlocks,
+            selectedId,
+            isPlaying,
+            hoveredNodeId,
+            system,
+            modalData
+          );
+          return;
+        }
 
-      // 1. Draw Simulink Grid Background
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, w, h);
+        // 1. Draw Simulink Grid Background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, w, h);
 
-      ctx.strokeStyle = '#F1F5F9';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < w; x += 24) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      }
-      for (let y = 0; y < h; y += 24) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      }
+        ctx.strokeStyle = '#F1F5F9';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < w; x += 24) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y < h; y += 24) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
 
-      // Dot grid
-      ctx.fillStyle = '#CBD5E1';
-      for (let x = 24; x < w; x += 48) {
-        for (let y = 24; y < h; y += 48) {
+        // Dot grid
+        ctx.fillStyle = '#CBD5E1';
+        for (let x = 24; x < w; x += 48) {
+          for (let y = 24; y < h; y += 48) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.2, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+
+        const isVertical = systemOrientation === 'vertical';
+
+        // Centerline snap guide when dragging
+        if (draggingNodeIdRef.current) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([4, 4]);
           ctx.beginPath();
-          ctx.arc(x, y, 1.2, 0, 2 * Math.PI);
+          if (isVertical) {
+            ctx.moveTo(360, 0);
+            ctx.lineTo(360, h);
+          } else {
+            ctx.moveTo(0, 220);
+            ctx.lineTo(w, 220);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Engineering Reference Guides for Vertical Mode (Gravity & Equilibrium Datum)
+        if (isVertical && nodes.length > 0) {
+          ctx.save();
+          const gx = 28;
+          const gy = 24;
+
+          // Gravity field card in upper left
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+          ctx.strokeStyle = '#CBD5E1';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.roundRect(gx, gy, 140, 36, 6);
           ctx.fill();
+          ctx.stroke();
+
+          // Gravity vector arrow pointing downwards
+          ctx.strokeStyle = '#0284C7';
+          ctx.fillStyle = '#0284C7';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(gx + 16, gy + 8);
+          ctx.lineTo(gx + 16, gy + 25);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(gx + 16, gy + 27);
+          ctx.lineTo(gx + 12, gy + 20);
+          ctx.lineTo(gx + 20, gy + 20);
+          ctx.closePath();
+          ctx.fill();
+
+          // Gravity text label
+          ctx.fillStyle = '#0F172A';
+          ctx.font = '700 11.5px var(--font-mono, monospace)';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          ctx.fillText('g = 9.81 m/s²', gx + 28, gy + 18);
+          ctx.fillStyle = '#64748B';
+          ctx.font = '500 9.5px system-ui';
+          ctx.fillText('Gravity Field (↓)', gx + 28, gy + 30);
+
+          // Coordinate direction indicator (+y downwards) on left margin
+          const axisX = gx + 16;
+          const axisYTop = gy + 48;
+          const axisYBot = gy + 90;
+          ctx.strokeStyle = '#0284C7';
+          ctx.fillStyle = '#0284C7';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(axisX, axisYTop);
+          ctx.lineTo(axisX, axisYBot);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(axisX, axisYBot + 2);
+          ctx.lineTo(axisX - 3.5, axisYBot - 5);
+          ctx.lineTo(axisX + 3.5, axisYBot - 5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.font = '700 10.5px var(--font-mono, monospace)';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('+y', axisX + 8, (axisYTop + axisYBot) / 2);
+
+          // Static equilibrium position datum line (only for real payload masses, not intermediate junctions)
+          nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc')).forEach(mNode => {
+            const undeformedY = Number.isFinite(mNode.y) ? mNode.y : 280;
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+            ctx.lineWidth = 1.0;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(220, undeformedY);
+            ctx.lineTo(500, undeformedY);
+            ctx.stroke();
+
+            // Datum badge on left
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.95)';
+            ctx.strokeStyle = '#CBD5E1';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(115, undeformedY - 9, 98, 18, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#64748B';
+            ctx.font = '600 9.5px var(--font-mono, monospace)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('y = 0 (Static Eq.)', 164, undeformedY);
+          });
+
+          ctx.restore();
         }
-      }
 
-      // Horizontal centerline snap guide when dragging
-      if (draggingNodeIdRef.current) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
-        ctx.lineWidth = 1.2;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(0, 220);
-        ctx.lineTo(w, 220);
-        ctx.stroke();
-        ctx.restore();
-      }
+        // Empty Canvas Starting Guide Card
+        if (nodes.length === 0) {
+          ctx.save();
+          const cx = w / 2;
+          const cy = h / 2 - 20;
 
-      // Empty Canvas Starting Guide Card
-      if (nodes.length === 0) {
-        ctx.save();
-        const cx = w / 2;
-        const cy = h / 2 - 20;
+          ctx.fillStyle = '#F8FAFC';
+          ctx.strokeStyle = '#94A3B8';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 6]);
+          ctx.beginPath();
+          ctx.roundRect(cx - 240, cy - 85, 480, 170, 12);
+          ctx.fill();
+          ctx.stroke();
 
-        ctx.fillStyle = '#F8FAFC';
-        ctx.strokeStyle = '#94A3B8';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath();
-        ctx.roundRect(cx - 240, cy - 85, 480, 170, 12);
-        ctx.fill();
-        ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#0F172A';
+          ctx.font = '700 16px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText('🛠️ Build Your Own System from Scratch', cx, cy - 46);
 
-        ctx.setLineDash([]);
-        ctx.fillStyle = '#0F172A';
-        ctx.font = '700 16px system-ui';
-        ctx.textAlign = 'center';
-        ctx.fillText('🛠️ Build Your Own System from Scratch', cx, cy - 46);
+          ctx.fillStyle = '#475569';
+          ctx.font = '500 12.5px system-ui';
+          ctx.fillText('1. Click "🧱 +Wall" in the palette to place a fixed anchor datum', cx, cy - 16);
+          ctx.fillText('2. Click "📦 +Mass" to add oscillating mass blocks', cx, cy + 10);
+          ctx.fillText('3. Click "🌀 Wire Spring" or "💧 Wire Damper" to connect elements', cx, cy + 36);
+          ctx.fillText('4. Drag any component freely to arrange your physical schematic', cx, cy + 62);
 
-        ctx.fillStyle = '#475569';
-        ctx.font = '500 12.5px system-ui';
-        ctx.fillText('1. Click "🧱 +Wall" in the palette to place a fixed anchor datum', cx, cy - 16);
-        ctx.fillText('2. Click "📦 +Mass" to add oscillating mass blocks', cx, cy + 10);
-        ctx.fillText('3. Click "🌀 Wire Spring" or "💧 Wire Damper" to connect elements', cx, cy + 36);
-        ctx.fillText('4. Drag any component freely to arrange your physical schematic', cx, cy + 62);
-
-        ctx.restore();
-      }
-
-      // Map node current visual positions (bounded by visualScale so blocks never collide)
-      const currentPosMap = new Map();
-      nodes.forEach(node => {
-        if (node.type === 'mass') {
-          const massIdx = system.massIndexMap.get(node.id);
-          const isBeingDragged = draggingNodeIdRef.current === node.id;
-          const disp = (!isBeingDragged && massIdx !== undefined && simData.x[massIdx]) ? simData.x[massIdx][stepIdx] : 0;
-          const visualPx = disp * visualScale;
-          currentPosMap.set(node.id, { x: node.x + visualPx, y: node.y, rawX: node.x, rawY: node.y });
-        } else {
-          currentPosMap.set(node.id, { x: node.x, y: node.y, rawX: node.x, rawY: node.y });
+          ctx.restore();
         }
-      });
-      currentPosMapRef.current = currentPosMap;
+
+        // Map node current visual positions (bounded by visualScale so blocks never collide)
+        const currentPosMap = new Map();
+        nodes.forEach(node => {
+          if (node.type === 'mass') {
+            const massIdx = system.massIndexMap.get(node.id);
+            const isBeingDragged = draggingNodeIdRef.current === node.id;
+            const isJunc = node.isJunction || node.id?.startsWith('junc');
+
+            let disp = 0;
+            if (!isBeingDragged && isPlaying && simData?.x) {
+              if (isJunc) {
+                // Static condensation for junction nodes: moves in exact physical lockstep with primary mass
+                const primaryMassNode = primaryMassNodes[0];
+                const pMassIdx = primaryMassNode ? system.massIndexMap.get(primaryMassNode.id) : undefined;
+                const primaryDisp = (pMassIdx !== undefined && simData.x[pMassIdx]?.[stepIdx] != null)
+                  ? Number(simData.x[pMassIdx][stepIdx]) : 0;
+
+                const downstreamSprings = edges.filter(e => e.type === 'spring' && (e.from === node.id || e.to === node.id) && (e.from === primaryMassNode?.id || e.to === primaryMassNode?.id));
+                const upstreamSprings = edges.filter(e => e.type === 'spring' && (e.from === node.id || e.to === node.id) && e.from !== primaryMassNode?.id && e.to !== primaryMassNode?.id);
+                const kDown = downstreamSprings.reduce((sum, sp) => sum + (Number(sp.k) || 0), 0);
+                const kUp = upstreamSprings.reduce((sum, sp) => sum + (Number(sp.k) || 0), 0);
+                const ratio = (kDown + kUp > 0) ? (kDown / (kDown + kUp)) : 0.5;
+                disp = ratio * primaryDisp;
+              } else if (massIdx !== undefined && simData.x[massIdx]?.[stepIdx] != null) {
+                const raw = Number(simData.x[massIdx][stepIdx]);
+                disp = Number.isFinite(raw) ? raw : 0;
+              }
+            } else if (!isBeingDragged && !isPlaying && simTimeRef.current > 0 && simData?.x) {
+              if (massIdx !== undefined && simData.x[massIdx]?.[stepIdx] != null) {
+                const raw = Number(simData.x[massIdx][stepIdx]);
+                disp = Number.isFinite(raw) ? raw : 0;
+              }
+            }
+            // When !isPlaying and simTimeRef.current === 0 (rest/editing mode), disp is 0.
+            // Blocks remain completely stationary at node.x, node.y. They do not jump on drag or wire attachment!
+
+            const safeScale = (Number.isFinite(visualScale) && visualScale > 0) ? visualScale : 140;
+            const visualPx = disp * safeScale;
+
+            if (isVertical) {
+              const safeX = Number.isFinite(node.x) ? node.x : 360;
+              const safeY = Number.isFinite(node.y) ? (Number.isFinite(visualPx) ? node.y + visualPx : node.y) : 310;
+              currentPosMap.set(node.id, { x: safeX, y: safeY, rawX: node.x, rawY: node.y });
+            } else {
+              const safeX = Number.isFinite(node.x) ? (Number.isFinite(visualPx) ? node.x + visualPx : node.x) : 280;
+              const safeY = Number.isFinite(node.y) ? node.y : 220;
+              currentPosMap.set(node.id, { x: safeX, y: safeY, rawX: node.x, rawY: node.y });
+            }
+          } else {
+            const safeX = Number.isFinite(node.x) ? node.x : (isVertical ? 360 : 80);
+            const safeY = Number.isFinite(node.y) ? node.y : (isVertical ? 52 : 220);
+            currentPosMap.set(node.id, { x: safeX, y: safeY, rawX: node.x, rawY: node.y });
+          }
+        });
+        currentPosMapRef.current = currentPosMap;
 
       // Reset hit targets array for interactive edge clicking and hover
       edgeHitTargetsRef.current = [];
@@ -1239,36 +1615,63 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         const isWall1Right = isWall1 && n1.wallSide === 'right';
         const isWall2Right = isWall2 && n2.wallSide === 'right';
 
-        const offset = Math.max(-20, Math.min(20, edge.yOffset || 0));
+        const isVerticalEdge = isVertical || (Math.abs(p2.y - p1.y) > Math.abs(p2.x - p1.x) * 1.5) ||
+          n1?.wallSide === 'top' || n1?.wallSide === 'bottom' || n2?.wallSide === 'top' || n2?.wallSide === 'bottom';
+
         const isJunc1 = n1?.id?.startsWith('junc') || Number(n1?.mass) <= 0.1;
         const isJunc2 = n2?.id?.startsWith('junc') || Number(n2?.mass) <= 0.1;
         const mw1 = isJunc1 ? 10 : (isWall1 ? 32 : 84);
         const mw2 = isJunc2 ? 10 : (isWall2 ? 32 : 84);
+        const mh1 = isJunc1 ? 10 : (isWall1 ? 24 : 56);
+        const mh2 = isJunc2 ? 10 : (isWall2 ? 24 : 56);
 
-        let startX, endX;
-        if (isWall1) {
-          startX = p1.x + (isWall1Right ? -16 : 16);
-        } else {
-          startX = p1.x + (p1.x <= p2.x ? mw1 / 2 : -mw1 / 2);
-        }
-        if (isWall2) {
-          endX = p2.x + (isWall2Right ? -16 : 16);
-        } else {
-          endX = p2.x + (p1.x <= p2.x ? -mw2 / 2 : mw2 / 2);
-        }
+        let startX, startY, endX, endY;
+        let offset = 0;
 
-        const startY = p1.y + offset;
-        const endY = p2.y + offset;
+        if (isVerticalEdge) {
+          const rawOffset = edge.xOffset != null ? edge.xOffset : (edge.yOffset || 0);
+          offset = Math.max(-36, Math.min(36, rawOffset));
+          startX = p1.x + offset;
+          endX = p2.x + offset;
+
+          if (isWall1) {
+            startY = p1.y + (n1.wallSide === 'bottom' ? -15 : 15);
+          } else {
+            startY = p1.y + (p1.y <= p2.y ? (mh1 / 2 + 5) : -(mh1 / 2 + 5));
+          }
+
+          if (isWall2) {
+            endY = p2.y + (n2.wallSide === 'bottom' ? -15 : 15);
+          } else {
+            endY = p2.y + (p1.y <= p2.y ? -(mh2 / 2 + 5) : (mh2 / 2 + 5));
+          }
+        } else {
+          offset = Math.max(-24, Math.min(24, edge.yOffset || 0));
+          if (isWall1) {
+            startX = p1.x + (isWall1Right ? -16 : 16);
+          } else {
+            startX = p1.x + (p1.x <= p2.x ? mw1 / 2 : -mw1 / 2);
+          }
+          if (isWall2) {
+            endX = p2.x + (isWall2Right ? -16 : 16);
+          } else {
+            endX = p2.x + (p1.x <= p2.x ? -mw2 / 2 : mw2 / 2);
+          }
+          startY = p1.y + offset;
+          endY = p2.y + offset;
+        }
 
         const label = edge.label || (edge.type === 'spring' ? `${edge.k} N/m` : edge.type === 'damper' ? `${edge.c} N·s/m` : `F(t) = ${edge.F0} N`);
 
         if (edge.type === 'force') {
-          const badgeBox = drawForceArrow(ctx, p2.x, p2.y, isSelected ? '#DC2626' : '#EF4444', label);
+          const badgeBox = drawForceArrow(ctx, p2.x, p2.y, isSelected ? '#DC2626' : '#EF4444', label, isVerticalEdge);
           edgeHitTargetsRef.current.push({
             id: edge.id,
             type: 'force',
             badgeBox,
-            line: { x1: p2.x - 30, y1: p2.y - 36, x2: p2.x + 16, y2: p2.y - 36 }
+            line: isVerticalEdge
+              ? { x1: p2.x + 58, y1: p2.y - 24, x2: p2.x + 58, y2: p2.y + 22 }
+              : { x1: p2.x - 30, y1: p2.y - 36, x2: p2.x + 16, y2: p2.y - 36 }
           });
         } else {
           // Draw selection glow halo if selected
@@ -1294,6 +1697,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           edgeRenderList.push({
             edge,
             isSelected,
+            isVerticalEdge,
             startX,
             startY,
             endX,
@@ -1306,40 +1710,81 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
       // Second pass: Draw non-overlapping badges and register hit boxes
       edgeRenderList.forEach((item) => {
-        const { edge, isSelected, startX, startY, endX, endY, offset, label } = item;
+        const { edge, isSelected, isVerticalEdge, startX, startY, endX, endY, offset, label } = item;
         const minX = Math.min(startX, endX);
         const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
         const midX = (startX + endX) / 2;
         const midY = (startY + endY) / 2;
 
         let badgeX = midX;
         let badgeY = midY;
 
-        // Intelligent placement to avoid collisions
-        if (offset < -6) {
-          // Top element: place badge above
-          badgeY = midY - 18;
-          badgeX = midX;
-        } else if (offset > 6) {
-          // Bottom element: place badge below
-          badgeY = midY + 18;
-          badgeX = midX;
-        } else {
-          // Middle element (offset ≈ 0): check for siblings in same horizontal span
-          const siblings = edgeRenderList.filter(s => s !== item && Math.max(minX, Math.min(s.startX, s.endX)) < Math.min(maxX, Math.max(s.startX, s.endX)));
-          const hasAbove = siblings.some(s => s.offset < -6);
-          const hasBelow = siblings.some(s => s.offset > 6);
+        if (isVerticalEdge) {
+          const siblings = edgeRenderList.filter(s => s.isVerticalEdge && s !== item);
+          const hasRight = siblings.some(s => s.offset > 6);
+          const hasLeft = siblings.some(s => s.offset < -6);
 
-          if (hasAbove && !hasBelow) {
-            badgeY = midY + 18;
-          } else if (!hasAbove && hasBelow) {
-            badgeY = midY - 18;
-          } else if (hasAbove && hasBelow) {
-            // Sandwiched between top and bottom elements: shift X to 72% of span to clear damper cylinder
-            badgeX = minX + (maxX - minX) * 0.72;
+          if (offset < -6) {
+            // Left lead
+            const hasCenter = siblings.some(s => Math.abs(s.offset) <= 6);
+            badgeX = midX - 58;
+            badgeY = hasCenter ? (midY + 34) : midY;
+          } else if (offset > 6) {
+            // Right lead (e.g. damper)
+            badgeX = midX + 58;
             badgeY = midY;
           } else {
-            badgeY = midY - 18;
+            // Center lead (offset ≈ 0)
+            if (hasRight && hasLeft) {
+              // 3 parallel elements: place center badge on left in upper quadrant (midY - 36), 70px above left badge
+              badgeX = midX - 58;
+              badgeY = midY - 36;
+            } else if (hasRight && !hasLeft) {
+              badgeX = midX - 54;
+              badgeY = midY;
+            } else if (!hasRight && hasLeft) {
+              badgeX = midX + 54;
+              badgeY = midY;
+            } else {
+              badgeX = midX + 52;
+              badgeY = midY;
+            }
+          }
+        } else {
+          // Horizontal edge placement
+          const siblings = edgeRenderList.filter(s => !s.isVerticalEdge && s !== item && Math.max(minX, Math.min(s.startX, s.endX)) < Math.min(maxX, Math.max(s.startX, s.endX)));
+
+          if (offset < -6) {
+            // Upper lane: if another sibling shares the upper span, stagger to the left
+            const hasCoSpan = siblings.some(s => s.offset <= 0);
+            badgeX = hasCoSpan ? (minX + (maxX - minX) * 0.36) : midX;
+            badgeY = midY - 22;
+          } else if (offset > 6) {
+            // Lower lane (e.g. damper): place cleanly below
+            badgeY = midY + 22;
+            badgeX = midX;
+          } else {
+            // Centerline lane (offset ~ 0)
+            const hasAbove = siblings.some(s => s.offset < -6);
+            const hasBelow = siblings.some(s => s.offset > 6);
+
+            if (hasAbove && hasBelow) {
+              // Middle element between upper spring and lower damper (e.g. k3 in series-parallel):
+              // Stagger to the right side (0.74) and elevate to top lane (y ≈ 182) side-by-side with k2's badge at 0.36!
+              badgeX = minX + (maxX - minX) * 0.74;
+              badgeY = midY - 38;
+            } else if (hasAbove && !hasBelow) {
+              badgeY = midY + 22;
+              badgeX = midX;
+            } else if (!hasAbove && hasBelow) {
+              badgeY = midY - 22;
+              badgeX = midX;
+            } else {
+              badgeY = midY - 22;
+              badgeX = midX;
+            }
           }
         }
 
@@ -1349,7 +1794,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           id: edge.id,
           type: edge.type,
           badgeBox,
-          line: { x1: minX, y1: startY, x2: maxX, y2: endY }
+          line: isVerticalEdge
+            ? { x1: startX, y1: minY, x2: endX, y2: maxY }
+            : { x1: minX, y1: startY, x2: maxX, y2: endY }
         });
       });
 
@@ -1361,106 +1808,206 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
         if (node.type === 'wall') {
           // Fixed Ground Anchor Wall
-          const wx = pos.x;
-          const wy = pos.y;
+          const wx = Number.isFinite(pos?.x) ? pos.x : (Number.isFinite(node.x) ? node.x : (isVertical ? 360 : 80));
+          const wy = Number.isFinite(pos?.y) ? pos.y : (Number.isFinite(node.y) ? node.y : (isVertical ? 70 : 220));
+          const isTopWall = node.wallSide === 'top' || (isVertical && !node.wallSide);
+          const isBottomWall = node.wallSide === 'bottom';
           const isRightWall = node.wallSide === 'right';
-          ctx.fillStyle = isSelected ? '#94A3B8' : '#CBD5E1';
-          ctx.fillRect(wx - 16, wy - 48, 32, 96);
-          ctx.strokeStyle = isSelected ? '#1E293B' : '#475569';
-          ctx.lineWidth = 2.5;
-          ctx.strokeRect(wx - 16, wy - 48, 32, 96);
 
-          // Wall ground hatch lines
-          ctx.strokeStyle = '#64748B';
-          ctx.lineWidth = 1.5;
-          for (let hy = wy - 42; hy <= wy + 42; hy += 12) {
-            ctx.beginPath();
-            if (isRightWall) {
-              ctx.moveTo(wx + 16, hy);
-              ctx.lineTo(wx + 28, hy + 10);
-            } else {
-              ctx.moveTo(wx - 16, hy);
-              ctx.lineTo(wx - 28, hy + 10);
+          if (isTopWall || isBottomWall) {
+            // Horizontal Ceiling / Floor wall slab
+            const wallW = 180;
+            const wallH = 22;
+            const slabLeft = wx - wallW / 2;
+            const slabTop = wy - wallH / 2;
+            const isHovered = hoveredNodeId === node.id;
+
+            // Brushed metallic support slab gradient
+            const slabGrad = ctx.createLinearGradient(wx, slabTop, wx, slabTop + wallH);
+            slabGrad.addColorStop(0, isSelected ? '#CBD5E1' : '#F1F5F9');
+            slabGrad.addColorStop(0.5, isSelected ? '#94A3B8' : '#E2E8F0');
+            slabGrad.addColorStop(1, isSelected ? '#64748B' : '#CBD5E1');
+            ctx.fillStyle = slabGrad;
+            ctx.fillRect(slabLeft, slabTop, wallW, wallH);
+
+            ctx.strokeStyle = isSelected ? '#1E293B' : '#334155';
+            ctx.lineWidth = 2.2;
+            ctx.strokeRect(slabLeft, slabTop, wallW, wallH);
+
+            // Ground Hatch Marks (fixed boundary grounding)
+            ctx.strokeStyle = '#64748B';
+            ctx.lineWidth = 1.5;
+            for (let hx = slabLeft + 8; hx <= slabLeft + wallW - 6; hx += 14) {
+              ctx.beginPath();
+              if (isTopWall) {
+                // Ceiling upward hatch marks
+                ctx.moveTo(hx, slabTop);
+                ctx.lineTo(hx + 9, slabTop - 11);
+              } else {
+                // Floor downward hatch marks
+                ctx.moveTo(hx, slabTop + wallH);
+                ctx.lineTo(hx - 9, slabTop + wallH + 11);
+              }
+              ctx.stroke();
             }
-            ctx.stroke();
-          }
 
-          // Terminal connection circles matching mass ports [-18, 0, 18]
-          const portX = isRightWall ? (wx - 16) : (wx + 16);
-          [-18, 0, 18].forEach(offY => {
-            ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
+            // Precision Clevis Mounting Lugs matching connected edge offsets
+            const connectedWallEdges = edges.filter(e => e.from === node.id || e.to === node.id);
+            const wallOffsets = new Set();
+            connectedWallEdges.forEach(e => {
+              const off = e.xOffset != null ? e.xOffset : (e.yOffset || 0);
+              wallOffsets.add(off);
+            });
+            if (wallOffsets.size === 0) {
+              wallOffsets.add(0);
+            }
+            wallOffsets.forEach(offX => {
+              drawClevisLug(
+                ctx,
+                wx + offX,
+                isTopWall ? (slabTop + wallH) : slabTop,
+                isTopWall ? 'down' : 'up',
+                isWireSrc,
+                isHovered
+              );
+            });
+
+            // Clean high-contrast typography with protective badge pill
+            ctx.save();
+            const labelText = node.label || (isTopWall ? 'Ceiling Support' : 'Rigid Foundation Base');
+            ctx.font = '700 11px system-ui, -apple-system, sans-serif';
+            const labelWidth = ctx.measureText(labelText).width;
+            const textY = isTopWall ? wy - 23 : wy + 26;
+
+            // Draw clean opaque pill behind label so hatch marks never strike through it
+            ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(portX, wy + offY, 4.5, 0, 2 * Math.PI);
+            ctx.roundRect(wx - labelWidth / 2 - 8, textY - 9, labelWidth + 16, 18, 4);
             ctx.fill();
-          });
+            ctx.strokeStyle = isSelected ? '#2563EB' : '#CBD5E1';
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
 
-          ctx.fillStyle = '#334155';
-          ctx.font = '700 11px var(--font-sans, system-ui)';
-          ctx.textAlign = 'center';
-          ctx.fillText(node.label || (isRightWall ? 'Right Base' : 'Fixed Base'), wx, wy + 64);
+            ctx.fillStyle = isSelected ? '#1D4ED8' : '#1E293B';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(labelText, wx, textY);
+            ctx.restore();
+          } else {
+            // Standard Left/Right Vertical wall slab
+            ctx.fillStyle = isSelected ? '#94A3B8' : '#CBD5E1';
+            ctx.fillRect(wx - 16, wy - 48, 32, 96);
+            ctx.strokeStyle = isSelected ? '#1E293B' : '#475569';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(wx - 16, wy - 48, 32, 96);
+
+            // Wall ground hatch lines
+            ctx.strokeStyle = '#64748B';
+            ctx.lineWidth = 1.5;
+            for (let hy = wy - 42; hy <= wy + 42; hy += 12) {
+              ctx.beginPath();
+              if (isRightWall) {
+                ctx.moveTo(wx + 16, hy);
+                ctx.lineTo(wx + 28, hy + 10);
+              } else {
+                ctx.moveTo(wx - 16, hy);
+                ctx.lineTo(wx - 28, hy + 10);
+              }
+              ctx.stroke();
+            }
+
+            // Terminal connection circles matching mass ports [-18, 0, 18]
+            const portX = isRightWall ? (wx - 16) : (wx + 16);
+            [-18, 0, 18].forEach(offY => {
+              ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
+              ctx.beginPath();
+              ctx.arc(portX, wy + offY, 4.5, 0, 2 * Math.PI);
+              ctx.fill();
+            });
+
+            ctx.fillStyle = '#334155';
+            ctx.font = '700 11px var(--font-sans, system-ui)';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.label || (isRightWall ? 'Right Base' : 'Fixed Base'), wx, wy + 64);
+          }
         } else if (node.type === 'mass') {
-          const mx = pos.x;
-          const my = pos.y;
+          const mx = Number.isFinite(pos?.x) ? pos.x : (Number.isFinite(node.x) ? node.x : (isVertical ? 360 : 280));
+          const my = Number.isFinite(pos?.y) ? pos.y : (Number.isFinite(node.y) ? node.y : (isVertical ? 260 : 220));
           const isJunction = node.id.startsWith('junc') || (Number(node.mass) <= 0.1);
 
           if (isJunction) {
             // Sleek Authentic CAD Mechanical Coupler / Spreader Link
             const connectedEdges = edges.filter(e => e.from === node.id || e.to === node.id);
-            const hasMultipleOffsets = connectedEdges.some(e => Math.abs(e.yOffset || 0) > 4);
+            const edgeOffsets = connectedEdges.map(e => {
+              const raw = isVertical ? (e.xOffset != null ? e.xOffset : (e.yOffset || 0)) : (e.yOffset != null ? e.yOffset : (e.xOffset || 0));
+              return Math.max(-36, Math.min(36, raw || 0));
+            });
+            const minOff = edgeOffsets.length > 0 ? Math.min(...edgeOffsets) : 0;
+            const maxOff = edgeOffsets.length > 0 ? Math.max(...edgeOffsets) : 0;
+            const hasMultipleOffsets = (maxOff - minOff) > 6;
 
             if (hasMultipleOffsets) {
-              // Problem 3 style: Vertical Equalizer Spreader Bar
-              const barW = 8;
-              const barH = 46;
+              // Spreader Bar dynamically sized to span ONLY the attached ports
+              const span = maxOff - minOff;
+              const barW = isVertical ? Math.max(26, span + 14) : 8;
+              const barH = isVertical ? 8 : Math.max(26, span + 14);
+              const barCenterX = isVertical ? (mx + (minOff + maxOff) / 2) : mx;
+              const barCenterY = isVertical ? my : (my + (minOff + maxOff) / 2);
 
-              // Selection halo
               if (isSelected) {
                 ctx.save();
                 ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
                 ctx.lineWidth = 8;
                 ctx.beginPath();
-                ctx.roundRect(mx - barW / 2 - 2, my - barH / 2 - 2, barW + 4, barH + 4, 6);
+                ctx.roundRect(barCenterX - barW / 2 - 2, barCenterY - barH / 2 - 2, barW + 4, barH + 4, 6);
                 ctx.stroke();
                 ctx.restore();
               }
 
-              // Brushed aluminum bar body
-              const grad = ctx.createLinearGradient(mx, my - barH / 2, mx, my + barH / 2);
+              const grad = isVertical
+                ? ctx.createLinearGradient(barCenterX - barW / 2, barCenterY, barCenterX + barW / 2, barCenterY)
+                : ctx.createLinearGradient(barCenterX, barCenterY - barH / 2, barCenterX, barCenterY + barH / 2);
               grad.addColorStop(0, '#F8FAFC');
               grad.addColorStop(0.5, '#E2E8F0');
               grad.addColorStop(1, '#CBD5E1');
               ctx.fillStyle = grad;
               ctx.beginPath();
-              ctx.roundRect(mx - barW / 2, my - barH / 2, barW, barH, 4);
+              ctx.roundRect(barCenterX - barW / 2, barCenterY - barH / 2, barW, barH, 4);
               ctx.fill();
 
-              // Bar border
               ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#64748B';
               ctx.lineWidth = isSelected ? 2.2 : 1.5;
               ctx.stroke();
 
-              // Center pivot pin rivet
+              // Mechanical pivot center mark
               ctx.fillStyle = '#1E293B';
               ctx.beginPath();
-              ctx.arc(mx, my, 2.5, 0, 2 * Math.PI);
+              ctx.arc(barCenterX, barCenterY, 2.5, 0, 2 * Math.PI);
               ctx.fill();
 
-              // Terminal connection dots at ports [-18, 0, 18]
-              [-18, 0, 18].forEach(offY => {
+              // Connection dots matching actual connected edge offsets
+              const uniquePins = Array.from(new Set(edgeOffsets));
+              uniquePins.forEach(off => {
                 ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
                 ctx.beginPath();
-                ctx.arc(mx, my + offY, 3.2, 0, 2 * Math.PI);
+                if (isVertical) {
+                  ctx.arc(mx + off, my, 3.2, 0, 2 * Math.PI);
+                } else {
+                  ctx.arc(mx, my + off, 3.2, 0, 2 * Math.PI);
+                }
                 ctx.fill();
               });
 
-              // Sleek floating pill badge above spreader
+              // Floating Junction Label Tag
+              const labelTop = barCenterY - barH / 2;
+              const displayLabel = node.label ? (node.label.includes('(') ? node.label.split('(')[0].trim() : node.label) : 'J₁';
+
               ctx.save();
               ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
               ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
               ctx.shadowBlur = 4;
-              ctx.shadowOffsetY = 1;
               ctx.beginPath();
-              ctx.roundRect(mx - 22, my - barH / 2 - 18, 44, 16, 8);
+              ctx.roundRect(barCenterX - 22, labelTop - 18, 44, 16, 8);
               ctx.fill();
               ctx.shadowColor = 'transparent';
               ctx.strokeStyle = isSelected ? '#2563EB' : '#94A3B8';
@@ -1471,12 +2018,11 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               ctx.font = '700 9.5px var(--font-sans, system-ui)';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText('J₁ (Link)', mx, my - barH / 2 - 10);
+              ctx.fillText(`${displayLabel} (Link)`, barCenterX, labelTop - 10);
               ctx.restore();
             } else {
-              // Problem 2 style: Circular Chrome Joint Pin
+              // Circular Chrome Joint Pin
               const r = 9;
-
               if (isSelected) {
                 ctx.save();
                 ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
@@ -1487,33 +2033,31 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 ctx.restore();
               }
 
-              // Radial chrome gradient
-              const grad = ctx.createRadialGradient(mx - 2, my - 2, 1, mx, my, r);
+              const safeR = Math.max(1, Number.isFinite(r) ? r : 9);
+              const grad = ctx.createRadialGradient(mx - 2, my - 2, 1, mx, my, safeR);
               grad.addColorStop(0, '#FFFFFF');
               grad.addColorStop(0.6, '#E2E8F0');
               grad.addColorStop(1, '#94A3B8');
               ctx.fillStyle = grad;
               ctx.beginPath();
-              ctx.arc(mx, my, r, 0, 2 * Math.PI);
+              ctx.arc(mx, my, safeR, 0, 2 * Math.PI);
               ctx.fill();
 
               ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#475569';
               ctx.lineWidth = isSelected ? 2.4 : 1.6;
               ctx.stroke();
 
-              // Center pin
               ctx.fillStyle = '#1E293B';
               ctx.beginPath();
               ctx.arc(mx, my, 3, 0, 2 * Math.PI);
               ctx.fill();
 
-              // Sleek floating pill badge above joint
               ctx.save();
               ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
               ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
               ctx.shadowBlur = 4;
               ctx.beginPath();
-              ctx.roundRect(mx - 18, my - r - 18, 36, 16, 8);
+              ctx.roundRect(mx - 18, my - safeR - 18, 36, 16, 8);
               ctx.fill();
               ctx.shadowColor = 'transparent';
               ctx.strokeStyle = isSelected ? '#2563EB' : '#94A3B8';
@@ -1524,75 +2068,196 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               ctx.font = '700 9.5px var(--font-sans, system-ui)';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText('J₁', mx, my - r - 10);
+              ctx.fillText('J₁', mx, my - safeR - 10);
               ctx.restore();
             }
           } else {
             // Real Oscillating Mass Block
-            const mw = 84;
+            const mw = 88;
             const mh = 56;
+            const isHovered = hoveredNodeId === node.id;
+            const showPorts = isWireSrc || wiringTool || isSelected || isHovered;
 
-            // Shadow
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-            ctx.fillRect(mx - mw / 2 + 4, my - mh / 2 + 6, mw, mh);
+            if (isVertical) {
+              // ── CLEAN, SIMPLE & ELEGANT VERTICAL MASS BLOCK ─────────────
+              const vmw = 86;
+              const vmh = 52;
+              ctx.save();
 
-            // Block Body
-            ctx.fillStyle = isSelected ? '#EFF6FF' : '#FFFFFF';
-            ctx.fillRect(mx - mw / 2, my - mh / 2, mw, mh);
-            ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#1E40AF';
-            ctx.lineWidth = isSelected || isWireSrc ? 2.8 : 2;
-            ctx.strokeRect(mx - mw / 2, my - mh / 2, mw, mh);
-
-            // Top header band
-            ctx.fillStyle = isSelected ? '#2563EB' : '#1E40AF';
-            ctx.fillRect(mx - mw / 2, my - mh / 2, mw, 18);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '700 10.5px var(--font-sans, system-ui)';
-            ctx.textAlign = 'center';
-            ctx.fillText(node.label || `m = ${node.mass || 1.0} kg`, mx, my - mh / 2 + 13);
-
-            // Live Telemetry inside Block
-            const massIdx = system.massIndexMap.get(node.id);
-            const curDisp = (massIdx !== undefined && simData.x[massIdx]) ? simData.x[massIdx][stepIdx] : 0;
-            ctx.fillStyle = '#0F172A';
-            ctx.font = '700 13px var(--font-mono, monospace)';
-            ctx.fillText(`x = ${(curDisp * 100).toFixed(1)} cm`, mx, my + (node.label ? 6 : 14));
-            if (node.label) {
-              ctx.fillStyle = '#64748B';
-              ctx.font = '600 10px var(--font-sans, system-ui)';
-              ctx.fillText(`${(node.mass || 1.0).toFixed(1)} kg`, mx, my + 20);
-            }
-
-            // Connection Terminals
-            [-18, 0, 18].forEach(offY => {
-              ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
-              ctx.beginPath(); ctx.arc(mx - mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
-              ctx.beginPath(); ctx.arc(mx + mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
-            });
-
-            // Rollers / Bearings beneath mass
-            ctx.fillStyle = '#475569';
-            ctx.beginPath(); ctx.arc(mx - 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
-            ctx.beginPath(); ctx.arc(mx + 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
-
-            // Continuous floor track that always extends under the rollers across the entire travel
-            const trackLeft = Math.min(pos.rawX - 56, mx - 44);
-            const trackRight = Math.max(pos.rawX + 56, mx + 44);
-            ctx.strokeStyle = '#94A3B8';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(trackLeft, my + mh / 2 + 10);
-            ctx.lineTo(trackRight, my + mh / 2 + 10);
-            ctx.stroke();
-
-            // Ground hatch marks under floor guide
-            ctx.strokeStyle = '#CBD5E1';
-            ctx.lineWidth = 1.2;
-            for (let hx = trackLeft + 8; hx <= trackRight - 4; hx += 14) {
+              // Subtle clean shadow
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
               ctx.beginPath();
-              ctx.moveTo(hx, my + mh / 2 + 10);
-              ctx.lineTo(hx - 5, my + mh / 2 + 16);
+              ctx.roundRect(mx - vmw / 2 + 2, my - vmh / 2 + 3, vmw, vmh, 6);
+              ctx.fill();
+
+              // Solid clean engineering blue body (simple, solid, zero white space)
+              ctx.fillStyle = isSelected ? '#1D4ED8' : (isWireSrc ? '#16A34A' : '#2563EB');
+              ctx.beginPath();
+              ctx.roundRect(mx - vmw / 2, my - vmh / 2, vmw, vmh, 6);
+              ctx.fill();
+
+              // Clean subtle border
+              ctx.strokeStyle = isSelected ? '#93C5FD' : (isWireSrc ? '#86EFAC' : '#1D4ED8');
+              ctx.lineWidth = isSelected || isWireSrc ? 2.0 : 1.5;
               ctx.stroke();
+
+              // Clean, crisp typography directly on the block (no black box, no screws)
+              // 1. Mass Label (e.g. m₁ (2.0 kg))
+              ctx.fillStyle = '#FFFFFF';
+              ctx.font = '700 12px system-ui, -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(node.label || `m = ${(node.mass || 1.0).toFixed(1)} kg`, mx, my - 10);
+
+              // 2. Live Displacement Telemetry (clean, light, simple)
+              const massIdx = system.massIndexMap.get(node.id);
+              const rawDisp = (massIdx !== undefined && simData?.x?.[massIdx]?.[stepIdx] != null) ? Number(simData.x[massIdx][stepIdx]) : 0;
+              const curDisp = Number.isFinite(rawDisp) ? rawDisp : 0;
+              const dispVal = (isPlaying || simTimeRef.current > 0) ? curDisp : 0;
+              const dispCm = (dispVal * 100).toFixed(1);
+              const dispStr = dispVal > 0 ? `+${dispCm}` : `${dispCm}`;
+
+              ctx.fillStyle = '#BFDBFE';
+              ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`y = ${dispStr} cm`, mx, my + 10);
+
+              ctx.restore();
+
+              // Dynamic Clevis Lugs: ONLY draw lugs where edges actually connect!
+              // Top Lugs (edges connected from above)
+              const topEdges = edges.filter(e => {
+                const otherId = e.from === node.id ? e.to : (e.to === node.id ? e.from : null);
+                if (!otherId) return false;
+                const otherPos = currentPosMap.get(otherId);
+                return otherPos && otherPos.y < my - 10;
+              });
+              const topOffsets = new Set();
+              topEdges.forEach(e => {
+                const off = e.xOffset != null ? e.xOffset : 0;
+                topOffsets.add(off);
+              });
+              if (topOffsets.size === 0 && showPorts) {
+                topOffsets.add(0);
+              }
+              topOffsets.forEach(offX => {
+                drawClevisLug(ctx, mx + offX, my - vmh / 2, 'up', isWireSrc, showPorts);
+              });
+
+              // Bottom Lugs: ONLY if edges connect below the mass (e.g. 2-DOF suspension)
+              const bottomEdges = edges.filter(e => {
+                const otherId = e.from === node.id ? e.to : (e.to === node.id ? e.from : null);
+                if (!otherId) return false;
+                const otherPos = currentPosMap.get(otherId);
+                return otherPos && otherPos.y > my + 10;
+              });
+              const bottomOffsets = new Set();
+              bottomEdges.forEach(e => {
+                const off = e.xOffset != null ? e.xOffset : 0;
+                bottomOffsets.add(off);
+              });
+              if (bottomOffsets.size > 0 || (showPorts && wiringTool)) {
+                if (bottomOffsets.size === 0) bottomOffsets.add(0);
+                bottomOffsets.forEach(offX => {
+                  drawClevisLug(ctx, mx + offX, my + vmh / 2, 'down', isWireSrc, showPorts);
+                });
+              }
+            } else {
+              // Horizontal Mass Block (Unchanged, preserved exactly as is)
+              // Subtle Drop Shadow
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
+              ctx.beginPath();
+              ctx.roundRect(mx - mw / 2 + 3, my - mh / 2 + 5, mw, mh, 6);
+              ctx.fill();
+
+              // Machined Steel Block Body
+              const bodyGrad = ctx.createLinearGradient(mx - mw / 2, my - mh / 2, mx + mw / 2, my + mh / 2);
+              bodyGrad.addColorStop(0, isSelected ? '#EFF6FF' : '#FFFFFF');
+              bodyGrad.addColorStop(1, isSelected ? '#DBEAFE' : '#F8FAFC');
+              ctx.fillStyle = bodyGrad;
+              ctx.beginPath();
+              ctx.roundRect(mx - mw / 2, my - mh / 2, mw, mh, 6);
+              ctx.fill();
+
+              ctx.strokeStyle = isSelected ? '#2563EB' : isWireSrc ? '#22C55E' : '#1E40AF';
+              ctx.lineWidth = isSelected || isWireSrc ? 2.5 : 2.0;
+              ctx.stroke();
+
+              // Top Header Band
+              ctx.fillStyle = isSelected ? '#2563EB' : '#1E40AF';
+              ctx.beginPath();
+              ctx.roundRect(mx - mw / 2, my - mh / 2, mw, 18, [6, 6, 0, 0]);
+              ctx.fill();
+
+              ctx.fillStyle = '#FFFFFF';
+              ctx.font = '700 10.5px system-ui, -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(node.label || `m = ${(node.mass || 1.0).toFixed(1)} kg`, mx, my - mh / 2 + 9);
+
+              // Live Telemetry inside Block
+              const massIdx = system.massIndexMap.get(node.id);
+              const rawDisp = (massIdx !== undefined && simData?.x?.[massIdx]?.[stepIdx] != null) ? Number(simData.x[massIdx][stepIdx]) : 0;
+              const curDisp = Number.isFinite(rawDisp) ? rawDisp : 0;
+              const prevDisp = (massIdx !== undefined && stepIdx > 0 && simData?.x?.[massIdx]?.[stepIdx - 1] != null)
+                ? Number(simData.x[massIdx][stepIdx - 1]) : curDisp;
+              const dt = (simData?.time?.[stepIdx] && simData?.time?.[stepIdx - 1])
+                ? (simData.time[stepIdx] - simData.time[stepIdx - 1]) : 0.02;
+              const curVel = dt > 0 ? (curDisp - prevDisp) / dt : 0;
+
+              const dispVal = (isPlaying || simTimeRef.current > 0) ? curDisp : 0;
+              const velVal = (isPlaying || simTimeRef.current > 0) ? curVel : 0;
+
+              ctx.fillStyle = '#0F172A';
+              ctx.font = '700 13px var(--font-mono, monospace)';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`x = ${(dispVal * 100).toFixed(1)} cm`, mx, my + 3);
+
+              ctx.fillStyle = '#64748B';
+              ctx.font = '600 10px system-ui, -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              const velCmS = (velVal * 100).toFixed(1);
+              ctx.fillText(`v = ${Math.abs(velVal) < 1e-4 ? '0.0' : velCmS} cm/s`, mx, my + 18);
+              // Horizontal ports: only show when hovering, selected, or wiring
+              if (showPorts) {
+                [-18, 0, 18].forEach(offY => {
+                  ctx.fillStyle = isWireSrc ? '#22C55E' : '#3B82F6';
+                  ctx.beginPath(); ctx.arc(mx - mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
+                  ctx.beginPath(); ctx.arc(mx + mw / 2, my + offY, 4, 0, 2 * Math.PI); ctx.fill();
+                });
+              }
+
+              // Base Rollers vs Suspension Lugs for Horizontal
+              const hasFloorBase = node.showBase !== false;
+              if (hasFloorBase) {
+                // Rollers / Bearings beneath mass
+                ctx.fillStyle = '#475569';
+                ctx.beginPath(); ctx.arc(mx - 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
+                ctx.beginPath(); ctx.arc(mx + 24, my + mh / 2 + 5, 5, 0, 2 * Math.PI); ctx.fill();
+
+                // Continuous floor track that always extends under the rollers across travel
+                const trackLeft = Math.min(pos.rawX - 56, mx - 44);
+                const trackRight = Math.max(pos.rawX + 56, mx + 44);
+                ctx.strokeStyle = '#94A3B8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(trackLeft, my + mh / 2 + 10);
+                ctx.lineTo(trackRight, my + mh / 2 + 10);
+                ctx.stroke();
+
+                // Ground hatch marks under floor guide
+                ctx.strokeStyle = '#CBD5E1';
+                ctx.lineWidth = 1.2;
+                for (let hx = trackLeft + 8; hx <= trackRight - 4; hx += 14) {
+                  ctx.beginPath();
+                  ctx.moveTo(hx, my + mh / 2 + 10);
+                  ctx.lineTo(hx - 5, my + mh / 2 + 16);
+                  ctx.stroke();
+                }
+              }
             }
           }
         }
@@ -1604,10 +2269,20 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         if (srcPos) {
           const srcNode = nodes.find(n => n.id === wireSource);
           const isSrcWall = srcNode?.type === 'wall';
-          const isSrcRightWall = isSrcWall && srcNode.wallSide === 'right';
           const targetMouse = mousePosRef.current;
-          const sx = srcPos.x + (isSrcWall ? (isSrcRightWall ? -16 : 16) : (targetMouse.x >= srcPos.x ? 42 : -42));
-          const sy = srcPos.y;
+          let sx, sy;
+          if (isVertical) {
+            sx = srcPos.x;
+            if (isSrcWall) {
+              sy = srcPos.y + (srcNode.wallSide === 'bottom' ? -12 : 12);
+            } else {
+              sy = srcPos.y + (targetMouse.y >= srcPos.y ? 28 : -28);
+            }
+          } else {
+            const isSrcRightWall = isSrcWall && srcNode.wallSide === 'right';
+            sx = srcPos.x + (isSrcWall ? (isSrcRightWall ? -16 : 16) : (targetMouse.x >= srcPos.x ? 42 : -42));
+            sy = srcPos.y;
+          }
 
           ctx.save();
           ctx.setLineDash([5, 5]);
@@ -1647,7 +2322,11 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
         }
       }
 
-      animFrameRef.current = requestAnimationFrame(render);
+      } catch (err) {
+        console.error('Canvas render error in SMDBuilder:', err);
+      } finally {
+        animFrameRef.current = requestAnimationFrame(render);
+      }
     };
 
     animFrameRef.current = requestAnimationFrame(render);
@@ -1655,7 +2334,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [nodes, edges, isPlaying, playbackSpeed, selectedId, wiringTool, wireSource, simData, system, visualScale, hoveredNodeId, canvasMode, simulinkBlocks, classroomSolution, modalData]);
+  }, [nodes, edges, isPlaying, playbackSpeed, selectedId, wiringTool, wireSource, simData, system, visualScale, hoveredNodeId, canvasMode, simulinkBlocks, classroomSolution, modalData, systemOrientation]);
 
   // ── Chart Data for Real-Time Oscilloscope ───────────────────────────────────
   const timeChartData = useMemo(() => {
@@ -1740,9 +2419,9 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
           </button>
         </div>
 
-        {/* Two-Deck CAD Workstation Toolbar */}
+        {/* CAD Workstation Toolbar */}
         <div className="smd-toolbar-deck-container">
-          {/* Deck Row 1: View Modes, Problem Presets & Custom/Clear */}
+          {/* Deck Row 1: View Modes & Custom Canvas Actions */}
           <div className="smd-deck-row smd-deck-row-top">
             {/* View Mode Switcher */}
             <div className="smd-view-toggle-group">
@@ -1757,7 +2436,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
               <button
                 type="button"
                 className={`smd-view-btn ${canvasMode === 'physical' ? 'active' : ''}`}
-                onClick={() => setCanvasMode('physical')}
+                onClick={handleSwitchToPhysicalMode}
                 title="Show physical schematic: mass blocks, spring coils, dashpots, and floor"
               >
                 🧱 Physical Mechanism
@@ -1775,45 +2454,24 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
             <div className="smd-toolbar-divider"></div>
 
-            {/* Classroom Problem Quick Pills */}
-            <div className="smd-preset-group">
-              <span className="smd-group-label">Classroom:</span>
-              {[
-                { key: 'parallel_springs', label: '1: Parallel' },
-                { key: 'series_springs', label: '2: Series' },
-                { key: 'series_parallel', label: '3: Series-Par.' }
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`smd-preset-btn ${activePreset === key ? 'active' : ''}`}
-                  onClick={() => loadPreset(key)}
-                  title={PRESETS[key]?.name}
-                >
-                  {label}
-                </button>
-              ))}
-
-              {/* More Templates Dropdown */}
-              <div className="smd-more-templates">
-                <select
-                  className="smd-select-preset"
-                  value={['parallel_springs', 'series_springs', 'series_parallel', 'custom'].includes(activePreset) ? '' : activePreset}
-                  onChange={(e) => {
-                    if (e.target.value) loadPreset(e.target.value);
-                  }}
-                  title="More Analytical Vibration Templates"
-                >
-                  <option value="" disabled>More Templates ▾</option>
-                  {Object.entries(PRESETS)
-                    .filter(([k]) => !['parallel_springs', 'series_springs', 'series_parallel'].includes(k))
-                    .map(([key, p]) => (
-                      <option key={key} value={key}>
-                        {p.shortLabel || p.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+            {/* System Orientation Switcher */}
+            <div className="smd-view-toggle-group">
+              <button
+                type="button"
+                className={`smd-view-btn ${systemOrientation === 'horizontal' ? 'active' : ''}`}
+                onClick={() => handleSetOrientation('horizontal')}
+                title="Horizontal layout with low-friction floor rollers and track"
+              >
+                ↔ Horizontal
+              </button>
+              <button
+                type="button"
+                className={`smd-view-btn ${systemOrientation === 'vertical' ? 'active' : ''}`}
+                onClick={() => handleSetOrientation('vertical')}
+                title="Vertical suspension layout without floor base (suspended mass from ceiling anchor)"
+              >
+                ↕ Vertical
+              </button>
             </div>
 
             <div className="smd-toolbar-spacer"></div>
@@ -1839,21 +2497,82 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
             </div>
           </div>
 
-          {/* Deck Row 2: Schematic Authoring Palette, IO & System Status */}
+          {/* Deck Row 2: Classroom Problem Library & Benchmark Templates */}
+          <div className="smd-deck-row smd-deck-row-mid">
+            <div className="smd-preset-group">
+              <span className="smd-group-label">Classroom:</span>
+              {[
+                { key: 'parallel_springs', label: '1: Parallel' },
+                { key: 'series_springs', label: '2: Series' },
+                { key: 'series_parallel', label: '3: Series-Par.' },
+                { key: 'vertical_sdof', label: '4: Vert SDOF' },
+                { key: 'vertical_2dof', label: '5: Vert 2-DOF' },
+                { key: 'vertical_ground', label: '6: Base Isolator' }
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`smd-preset-btn ${activePreset === key ? 'active' : ''}`}
+                  onClick={() => loadPreset(key)}
+                  title={PRESETS[key]?.name}
+                >
+                  {label}
+                </button>
+              ))}
+
+              <div className="smd-toolbar-divider" style={{ height: '16px', margin: '0 4px' }}></div>
+
+              {/* More Templates Dropdown */}
+              <div className="smd-more-templates">
+                <select
+                  className="smd-select-preset"
+                  value={['parallel_springs', 'series_springs', 'series_parallel', 'vertical_sdof', 'vertical_2dof', 'vertical_ground', 'custom'].includes(activePreset) ? '' : activePreset}
+                  onChange={(e) => {
+                    if (e.target.value) loadPreset(e.target.value);
+                  }}
+                  title="More Analytical Vibration Templates"
+                >
+                  <option value="" disabled>More Templates ▾</option>
+                  {Object.entries(PRESETS)
+                    .filter(([k]) => !['parallel_springs', 'series_springs', 'series_parallel', 'vertical_sdof', 'vertical_2dof', 'vertical_ground'].includes(k))
+                    .map(([key, p]) => (
+                      <option key={key} value={key}>
+                        {p.shortLabel || p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Deck Row 3: Schematic Authoring Palette, IO & System Status */}
           <div className="smd-deck-row smd-deck-row-bottom">
             {/* Palette */}
             <div className="smd-palette-group">
               <span className="smd-group-label">Palette:</span>
-              <button type="button" className="smd-tool-btn" onClick={() => addNode('mass')} title="Add Mass Block">
+              <button type="button" className="smd-tool-btn" onClick={() => addNode('mass')} title={systemOrientation === 'vertical' ? 'Add Suspended Mass Block (No Base)' : 'Add Mass Block'}>
                 📦 +Mass
               </button>
-              <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'left')} title="Add Fixed Ground Wall (Left Boundary Anchor)">
-                🧱 +Left Wall
-              </button>
-              <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'right')} title="Add Fixed Ground Wall (Right Boundary Anchor)">
-                🧱 +Right Wall
-              </button>
-              <button type="button" className="smd-tool-btn" onClick={handleAlignNodes} title="Snap and align all mass blocks and walls to the horizontal centerline (y = 220)">
+              {systemOrientation === 'vertical' ? (
+                <>
+                  <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'top')} title="Add Fixed Ceiling Support (Top Boundary Anchor)">
+                    🧱 +Ceiling Wall
+                  </button>
+                  <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'bottom')} title="Add Fixed Floor Support (Bottom Boundary Anchor)">
+                    🧱 +Floor Wall
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'left')} title="Add Fixed Ground Wall (Left Boundary Anchor)">
+                    🧱 +Left Wall
+                  </button>
+                  <button type="button" className="smd-tool-btn" onClick={() => addNode('wall', 'right')} title="Add Fixed Ground Wall (Right Boundary Anchor)">
+                    🧱 +Right Wall
+                  </button>
+                </>
+              )}
+              <button type="button" className="smd-tool-btn" onClick={handleAlignNodes} title={systemOrientation === 'vertical' ? 'Snap and align all mass blocks and walls to the vertical centerline (x = 360)' : 'Snap and align all mass blocks and walls to the horizontal centerline (y = 220)'}>
                 📐 Align Axis
               </button>
               <button
@@ -1926,8 +2645,14 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
             {/* System Status Pill */}
             <div className="smd-status-pill-container">
-              <span className={`smd-status-pill ${isTrue2DOF ? 'dof-2' : 'dof-1'}`}>
-                {isTrue2DOF ? '🔵 2-DOF Dynamic System' : isEquivalentSDOF ? '🟢 SDOF Condensed (Coupled)' : '🟢 1-DOF SDOF System'}
+              <span className={`smd-status-pill ${primaryMassNodes.length >= 2 ? 'dof-2' : 'dof-1'}`}>
+                {primaryMassNodes.length > 2
+                  ? `🔵 ${primaryMassNodes.length}-DOF Dynamic System`
+                  : isTrue2DOF
+                    ? '🔵 2-DOF Dynamic System'
+                    : isEquivalentSDOF
+                      ? '🟢 SDOF Condensed (Coupled)'
+                      : '🟢 Single-DOF (SDOF) System'}
               </span>
             </div>
           </div>
@@ -2085,9 +2810,10 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                 min="0"
                 max="8"
                 step="0.02"
-                value={simTimeState}
+                value={Math.max(0, Math.min(8.0, Number.isFinite(simTimeState) ? simTimeState : 0))}
                 onChange={(e) => {
-                  const val = parseFloat(e.target.value);
+                  const rawVal = parseFloat(e.target.value);
+                  const val = Math.max(0, Math.min(8.0, Number.isFinite(rawVal) ? rawVal : 0));
                   simTimeRef.current = val;
                   setSimTimeState(val);
                 }}
@@ -2162,30 +2888,67 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                       />
                     </div>
                     {selectedNode.type === 'wall' && (
-                      <div className="smd-field-row">
-                        <label>Wall Anchor:</label>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                      <div className="smd-field-col">
+                        <label className="smd-field-col-label">Wall Anchor:</label>
+                        <div className="smd-segmented-grid-2">
                           <button
                             type="button"
-                            className={`smd-tool-btn ${selectedNode.wallSide !== 'right' ? 'active-tool' : ''}`}
-                            style={{ fontSize: '11px', padding: '3px 8px' }}
+                            className={`smd-tool-btn ${selectedNode.wallSide === 'left' || (!selectedNode.wallSide && systemOrientation !== 'vertical') ? 'active-tool' : ''}`}
                             onClick={() => updateSelectedNode('wallSide', 'left')}
+                            title="Left Vertical Ground Anchor"
                           >
-                            Left (Ports Right)
+                            Left Wall
                           </button>
                           <button
                             type="button"
                             className={`smd-tool-btn ${selectedNode.wallSide === 'right' ? 'active-tool' : ''}`}
-                            style={{ fontSize: '11px', padding: '3px 8px' }}
                             onClick={() => updateSelectedNode('wallSide', 'right')}
+                            title="Right Vertical Ground Anchor"
                           >
-                            Right (Ports Left)
+                            Right Wall
+                          </button>
+                          <button
+                            type="button"
+                            className={`smd-tool-btn ${selectedNode.wallSide === 'top' || (!selectedNode.wallSide && systemOrientation === 'vertical') ? 'active-tool' : ''}`}
+                            onClick={() => updateSelectedNode('wallSide', 'top')}
+                            title="Ceiling Fixed Anchor (Top Boundary)"
+                          >
+                            Ceiling Anchor
+                          </button>
+                          <button
+                            type="button"
+                            className={`smd-tool-btn ${selectedNode.wallSide === 'bottom' ? 'active-tool' : ''}`}
+                            onClick={() => updateSelectedNode('wallSide', 'bottom')}
+                            title="Floor Fixed Anchor (Bottom Boundary)"
+                          >
+                            Floor Anchor
                           </button>
                         </div>
                       </div>
                     )}
                     {selectedNode.type === 'mass' && (
                       <>
+                        <div className="smd-field-col">
+                          <label className="smd-field-col-label">Base Support:</label>
+                          <div className="smd-segmented-grid-2">
+                            <button
+                              type="button"
+                              className={`smd-tool-btn ${selectedNode.showBase !== false && systemOrientation !== 'vertical' ? 'active-tool' : ''}`}
+                              onClick={() => updateSelectedNode('showBase', true)}
+                              title="Rest on low-friction floor rollers with ground track"
+                            >
+                              🔘 Floor Rollers
+                            </button>
+                            <button
+                              type="button"
+                              className={`smd-tool-btn ${selectedNode.showBase === false || systemOrientation === 'vertical' ? 'active-tool' : ''}`}
+                              onClick={() => updateSelectedNode('showBase', false)}
+                              title="Suspended mass without floor base/track (pure vertical or hanging suspension)"
+                            >
+                              🪂 Suspended (No Base)
+                            </button>
+                          </div>
+                        </div>
                         <div className="smd-field-row">
                           <label>Mass m (kg):</label>
                           <input
@@ -2199,7 +2962,7 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                           />
                         </div>
                         <div className="smd-field-row">
-                          <label>Initial x₀ (m):</label>
+                          <label>{systemOrientation === 'vertical' ? 'Initial y₀ (m):' : 'Initial x₀ (m):'}</label>
                           <input
                             type="number"
                             className="smd-input"
@@ -2856,6 +3619,12 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
                     <span className="smd-ribbon-val">{classroomSolution.omega_d.toFixed(3)} rad/s</span>
                   </div>
                 )}
+                {systemOrientation === 'vertical' && classroomSolution.k_eq > 0 && (
+                  <div className="smd-ribbon-item">
+                    <span className="smd-ribbon-label">Static Deflection δ_st</span>
+                    <span className="smd-ribbon-val">{((classroomSolution.m * 9.81 / classroomSolution.k_eq) * 1000).toFixed(1)} mm</span>
+                  </div>
+                )}
               </div>
 
               {/* Step Cards List */}
@@ -3019,45 +3788,30 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
               {/* Assembled Matrices */}
               <div className="smd-matrix-cards-grid">
-                <div className="smd-matrix-card">
-                  <h4>
-                    Mass Matrix [M] (kg)
-                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(1×1 Scalar)</span>}
-                  </h4>
-                  <pre>
-                    {JSON.stringify(
-                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.M : system.M,
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
-                <div className="smd-matrix-card">
-                  <h4>
-                    Stiffness Matrix [K] (N/m)
-                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(k_eq)</span>}
-                  </h4>
-                  <pre>
-                    {JSON.stringify(
-                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.K : system.K,
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
-                <div className="smd-matrix-card">
-                  <h4>
-                    Damping Matrix [C] (N·s/m)
-                    {isEquivalentSDOF && matrixViewMode === 'condensed' && <span style={{ color: '#2563EB', fontSize: '10.5px', marginLeft: '6px' }}>(c_eq)</span>}
-                  </h4>
-                  <pre>
-                    {JSON.stringify(
-                      isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.C : system.C,
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
+                <MatrixDisplay
+                  title="Mass Matrix [M]"
+                  symbol="M"
+                  matrix={isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.M : system.M}
+                  unit="kg"
+                  isCondensed={isEquivalentSDOF && matrixViewMode === 'condensed'}
+                  scalarLabel="(1×1 Scalar)"
+                />
+                <MatrixDisplay
+                  title="Stiffness Matrix [K]"
+                  symbol="K"
+                  matrix={isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.K : system.K}
+                  unit="N/m"
+                  isCondensed={isEquivalentSDOF && matrixViewMode === 'condensed'}
+                  scalarLabel="(k_eq)"
+                />
+                <MatrixDisplay
+                  title="Damping Matrix [C]"
+                  symbol="C"
+                  matrix={isEquivalentSDOF && matrixViewMode === 'condensed' ? physicalSystemData.C : system.C}
+                  unit="N·s/m"
+                  isCondensed={isEquivalentSDOF && matrixViewMode === 'condensed'}
+                  scalarLabel="(c_eq)"
+                />
               </div>
 
               {isEquivalentSDOF && matrixViewMode === 'condensed' && (
@@ -3404,6 +4158,68 @@ legend(arrayfun(@(i) sprintf('Mode %d', i), 1:N, 'UniformOutput', false), 'Locat
 
 // ── Graphical Canvas Helper Drawing Functions ─────────────────────────────────
 
+function drawClevisLug(ctx, x, y, dir, isWireSrc, isHovered) {
+  // dir: 'down' (from ceiling or mass bottom) or 'up' (from floor or mass top)
+  const tabW = 12;
+  const tabH = 7;
+  const pinR = 2.0;
+  const sign = dir === 'down' ? 1 : -1;
+
+  ctx.save();
+  ctx.fillStyle = '#CBD5E1';
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  if (dir === 'down') {
+    ctx.roundRect(x - tabW / 2, y, tabW, tabH, [0, 0, 3, 3]);
+  } else {
+    ctx.roundRect(x - tabW / 2, y - tabH, tabW, tabH, [3, 3, 0, 0]);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  // Pin hole
+  const pinY = y + sign * (tabH - 2.8);
+  ctx.fillStyle = isWireSrc ? '#22C55E' : (isHovered ? '#38BDF8' : '#334155');
+  ctx.beginPath();
+  ctx.arc(x, pinY, pinR, 0, 2 * Math.PI);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCGSymbol(ctx, cx, cy) {
+  ctx.save();
+  ctx.globalAlpha = 0.28; // Subtle CAD watermark that does not obscure telemetry text
+  ctx.strokeStyle = '#64748B';
+  ctx.fillStyle = '#64748B';
+  ctx.lineWidth = 1.2;
+  const r = 7;
+  // Circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctx.stroke();
+  // Crosshairs extending 3px outside circle
+  ctx.beginPath();
+  ctx.moveTo(cx - r - 3, cy);
+  ctx.lineTo(cx + r + 3, cy);
+  ctx.moveTo(cx, cy - r - 3);
+  ctx.lineTo(cx, cy + r + 3);
+  ctx.stroke();
+  // Fill opposite quadrants
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, r, 0, Math.PI / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, r, Math.PI, 3 * Math.PI / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawEdgeBadge(ctx, x, y, label, type, isSelected) {
   if (!label) return;
   ctx.save();
@@ -3453,18 +4269,18 @@ function drawEdgeBadge(ctx, x, y, label, type, isSelected) {
 }
 
 function drawSpring(ctx, x1, y1, x2, y2, color, label) {
-  const isAngled = Math.abs(y2 - y1) > 4;
+  const isDogleg = Math.abs(x2 - x1) > 30 && Math.abs(y2 - y1) > 15;
   let p1x = x1, p1y = y1, p2x = x2, p2y = y2;
 
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2.4;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  if (isAngled) {
+  if (isDogleg) {
     const leadLen = Math.min(18, Math.max(10, Math.abs(x2 - x1) * 0.12));
     const dir = x2 >= x1 ? 1 : -1;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x1 + dir * leadLen, y1);
@@ -3485,21 +4301,25 @@ function drawSpring(ctx, x1, y1, x2, y2, color, label) {
   if (dist < 15) { ctx.restore(); return; }
   const angle = Math.atan2(dy, dx);
   const numCoils = 8;
-  const lead = Math.min(14, dist * 0.12);
-  const coilWidth = dist - 2 * lead;
+  const lead = Math.min(16, dist * 0.12);
+  const coilLen = dist - 2 * lead;
   const h = 11;
+  const pitch = coilLen / numCoils;
 
   ctx.translate(p1x, p1y);
   ctx.rotate(angle);
 
+  // Single clean, crisp, elegant spring line (standard engineering textbook CAD)
+  ctx.strokeStyle = color || '#2563EB';
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(lead, 0);
 
   for (let i = 0; i < numCoils; i++) {
-    const cx1 = lead + (i + 0.25) * (coilWidth / numCoils);
+    const cx1 = lead + (i + 0.25) * pitch;
     const cy1 = -h;
-    const cx2 = lead + (i + 0.75) * (coilWidth / numCoils);
+    const cx2 = lead + (i + 0.75) * pitch;
     const cy2 = h;
     ctx.lineTo(cx1, cy1);
     ctx.lineTo(cx2, cy2);
@@ -3508,7 +4328,13 @@ function drawSpring(ctx, x1, y1, x2, y2, color, label) {
   ctx.lineTo(dist, 0);
   ctx.stroke();
 
-  // Label badge (only if explicitly passed directly without caller override)
+  // End mount eyelets
+  ctx.fillStyle = '#64748B';
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.5, 0, 2 * Math.PI);
+  ctx.arc(dist, 0, 2.5, 0, 2 * Math.PI);
+  ctx.fill();
+
   if (label) {
     ctx.save();
     ctx.translate(dist / 2, -h - 10);
@@ -3523,18 +4349,18 @@ function drawSpring(ctx, x1, y1, x2, y2, color, label) {
 }
 
 function drawDamper(ctx, x1, y1, x2, y2, color, label) {
-  const isAngled = Math.abs(y2 - y1) > 4;
+  const isDogleg = Math.abs(x2 - x1) > 30 && Math.abs(y2 - y1) > 15;
   let p1x = x1, p1y = y1, p2x = x2, p2y = y2;
 
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2.2;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  if (isAngled) {
+  if (isDogleg) {
     const leadLen = Math.min(18, Math.max(10, Math.abs(x2 - x1) * 0.12));
     const dir = x2 >= x1 ? 1 : -1;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x1 + dir * leadLen, y1);
@@ -3554,40 +4380,61 @@ function drawDamper(ctx, x1, y1, x2, y2, color, label) {
   const dist = Math.hypot(dx, dy);
   if (dist < 20) { ctx.restore(); return; }
   const angle = Math.atan2(dy, dx);
-  const mid = dist / 2;
-  const cylW = Math.min(34, dist * 0.4);
-  const cylH = 18;
 
   ctx.translate(p1x, p1y);
   ctx.rotate(angle);
 
-  // Left rod into cylinder housing
+  // Clean, lightweight dashpot proportions
+  const mid = dist / 2;
+  const cylW = Math.max(38, Math.min(56, dist * 0.35));
+  const cylH = 18;
+  const cylLeft = mid - cylW / 2;
+  const cylRight = mid + cylW / 2;
+
+  // Real-time dynamic piston head position based on extension
+  const pistonPos = Math.max(cylLeft + 6, Math.min(cylRight - 6, mid));
+
+  // 1. Anchored mounting stem (from anchor to cylinder base)
+  ctx.strokeStyle = color || '#D97706';
+  ctx.lineWidth = 2.2;
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(mid - cylW / 2, 0);
+  ctx.lineTo(cylLeft, 0);
   ctx.stroke();
 
-  // Cylinder housing
+  // 2. Light translucent cylinder fluid fill
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+  ctx.fillRect(cylLeft, -cylH / 2, cylW, cylH);
+
+  // 3. Cylinder housing stroke (open at right end for rod)
+  ctx.strokeStyle = color || '#D97706';
+  ctx.lineWidth = 2.0;
   ctx.beginPath();
-  ctx.moveTo(mid + cylW / 2, -cylH / 2);
-  ctx.lineTo(mid - cylW / 2, -cylH / 2);
-  ctx.lineTo(mid - cylW / 2, cylH / 2);
-  ctx.lineTo(mid + cylW / 2, cylH / 2);
+  ctx.moveTo(cylRight, -cylH / 2);
+  ctx.lineTo(cylLeft, -cylH / 2);
+  ctx.lineTo(cylLeft, cylH / 2);
+  ctx.lineTo(cylRight, cylH / 2);
   ctx.stroke();
 
-  // Cylinder fluid fill
-  ctx.fillStyle = color + '22';
-  ctx.fillRect(mid - cylW / 2, -cylH / 2, cylW, cylH);
-
-  // Piston plate & right rod
+  // 4. Moving piston plate & rod connected to moving end
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.moveTo(mid - 3, -cylH / 2 + 3);
-  ctx.lineTo(mid - 3, cylH / 2 - 3);
-  ctx.moveTo(mid - 3, 0);
+  // Piston plate
+  ctx.moveTo(pistonPos, -cylH / 2 + 2.5);
+  ctx.lineTo(pistonPos, cylH / 2 - 2.5);
+  // Piston rod
+  ctx.moveTo(pistonPos, 0);
   ctx.lineTo(dist, 0);
   ctx.stroke();
 
-  // Label badge (only if explicitly passed directly without caller override)
+  // End mount eyelets
+  ctx.fillStyle = '#64748B';
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.5, 0, 2 * Math.PI);
+  ctx.arc(dist, 0, 2.5, 0, 2 * Math.PI);
+  ctx.fill();
+
   if (label) {
     ctx.save();
     ctx.translate(mid, -cylH / 2 - 10);
@@ -3601,8 +4448,50 @@ function drawDamper(ctx, x1, y1, x2, y2, color, label) {
   ctx.restore();
 }
 
-function drawForceArrow(ctx, x, y, color, label) {
+function drawForceArrow(ctx, x, y, color, label, isVertical = false) {
   ctx.save();
+  if (isVertical) {
+    const arrowX = x + 62; // Clearly outside mass body (right edge is at x + 48)
+    const arrowLen = 46;
+    const arrowEnd = y + 20;
+    const arrowStart = arrowEnd - arrowLen;
+
+    // Horizontal mounting bracket from mass right side (x + 48) to actuator line
+    ctx.strokeStyle = '#94A3B8';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(x + 48, y);
+    ctx.lineTo(arrowX, y);
+    ctx.stroke();
+
+    // Pivot pin on mass right edge
+    ctx.fillStyle = '#64748B';
+    ctx.beginPath();
+    ctx.arc(x + 48, y, 3, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Actuator Force Arrow pointing downwards
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowStart);
+    ctx.lineTo(arrowX, arrowEnd);
+    ctx.stroke();
+
+    // Arrowhead pointing down
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowEnd);
+    ctx.lineTo(arrowX - 6, arrowEnd - 10);
+    ctx.lineTo(arrowX + 6, arrowEnd - 10);
+    ctx.closePath();
+    ctx.fill();
+
+    const badgeBox = drawEdgeBadge(ctx, arrowX + 32, y, label, 'force', color === '#DC2626');
+    ctx.restore();
+    return badgeBox || { left: arrowX - 10, top: arrowStart, right: arrowX + 62, bottom: arrowEnd };
+  }
+
   // Render top-mounted actuator horizontal force arrow so it never intersects horizontal springs/dampers
   const arrowY = y - 36;
   const arrowLen = 42;
@@ -3617,7 +4506,7 @@ function drawForceArrow(ctx, x, y, color, label) {
   ctx.lineTo(x, arrowY);
   ctx.stroke();
 
-  // Actuator Force Arrow
+  // Actuator Force Arrow pointing horizontally
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = 2.5;
@@ -3626,7 +4515,7 @@ function drawForceArrow(ctx, x, y, color, label) {
   ctx.lineTo(arrowEnd, arrowY);
   ctx.stroke();
 
-  // Arrowhead pointing rightwards along force vector
+  // Arrowhead pointing right
   ctx.beginPath();
   ctx.moveTo(arrowEnd, arrowY);
   ctx.lineTo(arrowEnd - 9, arrowY - 5);
@@ -3634,10 +4523,9 @@ function drawForceArrow(ctx, x, y, color, label) {
   ctx.closePath();
   ctx.fill();
 
-  // Actuator badge label using clean badge styling
-  const badgeBox = drawEdgeBadge(ctx, x, arrowY - 16, label, 'force', color === '#DC2626');
+  const badgeBox = drawEdgeBadge(ctx, x, arrowY - 14, label, 'force', color === '#DC2626');
   ctx.restore();
-  return badgeBox || { left: arrowStart, top: arrowY - 24, right: arrowEnd, bottom: arrowY + 8 };
+  return badgeBox || { left: arrowStart, top: arrowY - 26, right: arrowEnd, bottom: arrowY };
 }
 
 // ── MathWorks Simulink Block Diagram Canvas Renderer ─────────────────────────
@@ -3893,93 +4781,21 @@ function drawSimulinkCanvas(
       { x: int_x1.x - int_x1.w / 2, y: int_x1.y }
     ], `ẋ1=${v1_val.toFixed(2)}`, '#2563EB');
 
-    // Branch 1 Dot
+    // Branch 1 Dot (Velocity 1)
     ctx.fillStyle = '#1E293B';
     ctx.beginPath(); ctx.arc(bx1, int_v1.y, 3.5, 0, 2 * Math.PI); ctx.fill();
 
-    // Mass 1 Ground Damper Feedback
-    if (c1 > 0) {
-      drawWire([
-        { x: bx1, y: int_v1.y },
-        { x: bx1, y: gain_c1.y },
-        { x: gain_c1.x + gain_c1.w / 2, y: gain_c1.y }
-      ]);
-      drawWire([
-        { x: gain_c1.x - gain_c1.w / 2, y: gain_c1.y },
-        { x: sum1.x - 7, y: gain_c1.y },
-        { x: sum1.x - 7, y: sum1.y + sum1.r }
-      ], `Fd1=${Fd1_val.toFixed(1)}N`, '#D97706');
-    }
-
-    // Mass 1 Ground Spring Feedback
     const bx2 = (int_x1.x + mux.x) / 2 - 15;
     drawWire([
       { x: int_x1.x + int_x1.w / 2, y: int_x1.y },
       { x: mux.x - mux.w / 2, y: int_x1.y }
     ], `x1=${(x1_val * 100).toFixed(1)}cm`, '#059669');
 
-    // Branch 2 Dot
+    // Branch 2 Dot (Displacement 1)
     ctx.fillStyle = '#1E293B';
     ctx.beginPath(); ctx.arc(bx2, int_x1.y, 3.5, 0, 2 * Math.PI); ctx.fill();
 
-    if (k1 > 0) {
-      drawWire([
-        { x: bx2, y: int_x1.y },
-        { x: bx2, y: gain_k1.y },
-        { x: gain_k1.x + gain_k1.w / 2, y: gain_k1.y }
-      ]);
-      drawWire([
-        { x: gain_k1.x - gain_k1.w / 2, y: gain_k1.y },
-        { x: sum1.x + 7, y: gain_k1.y },
-        { x: sum1.x + 7, y: sum1.y + sum1.r }
-      ], `Fs1=${Fs1_val.toFixed(1)}N`, '#2563EB');
-    }
-
-    // ── Inter-Mass Coupling Wires (Damper c12 & Spring k12) ───────────────────
-    if (c12 > 0) {
-      // Relative velocity input taps
-      drawWire([
-        { x: bx1, y: int_v1.y },
-        { x: bx1, y: gain_c12.y - 7 },
-        { x: gain_c12.x + gain_c12.w / 2, y: gain_c12.y - 7 }
-      ]);
-      drawWire([
-        { x: bx1, y: int_v2.y },
-        { x: bx1, y: gain_c12.y + 7 },
-        { x: gain_c12.x + gain_c12.w / 2, y: gain_c12.y + 7 }
-      ]);
-
-      // Reaction on Mass 1 (Enters sum1 with -)
-      drawWire([
-        { x: gain_c12.x - gain_c12.w / 2, y: gain_c12.y - 7 },
-        { x: sum1.x + 14, y: gain_c12.y - 7 },
-        { x: sum1.x + 14, y: sum1.y + sum1.r }
-      ], `Fd12=${Fd12_val.toFixed(1)}N`, '#D97706');
-
-      // Action on Mass 2 (Enters sum2 with +)
-      drawWire([
-        { x: gain_c12.x - gain_c12.w / 2, y: gain_c12.y + 7 },
-        { x: sum2.x - 7, y: gain_c12.y + 7 },
-        { x: sum2.x - 7, y: sum2.y - sum2.r }
-      ], `+Fd12`, '#15803D');
-    }
-
-    if (k12 > 0) {
-      // Spring coupling outputs
-      drawWire([
-        { x: gain_k12.x - gain_k12.w / 2, y: gain_k12.y - 7 },
-        { x: sum1.x + 21, y: gain_k12.y - 7 },
-        { x: sum1.x + 21, y: sum1.y + sum1.r }
-      ], `Fs12=${Fs12_val.toFixed(1)}N`, '#2563EB');
-
-      drawWire([
-        { x: gain_k12.x - gain_k12.w / 2, y: gain_k12.y + 7 },
-        { x: sum2.x + 7, y: gain_k12.y + 7 },
-        { x: sum2.x + 7, y: sum2.y - sum2.r }
-      ], `+Fs12`, '#15803D');
-    }
-
-    // ── Signal Wires for Lane 2 (Mass 2) ──────────────────────────────────────
+    // ── Lane 2 Forward Wires ────────────────────────────────────────────────
     drawWire([
       { x: sum2.x + sum2.r, y: sum2.y },
       { x: gain_m2.x - gain_m2.w / 2, y: gain_m2.y }
@@ -3996,13 +4812,232 @@ function drawSimulinkCanvas(
       { x: int_x2.x - int_x2.w / 2, y: int_x2.y }
     ], `ẋ2=${v2_val.toFixed(2)}`, '#2563EB');
 
+    // Branch 3 Dot (Velocity 2)
     ctx.fillStyle = '#1E293B';
     ctx.beginPath(); ctx.arc(bx2_v, int_v2.y, 3.5, 0, 2 * Math.PI); ctx.fill();
 
+    const bx2_x = (int_x2.x + mux.x) / 2 - 15;
     drawWire([
       { x: int_x2.x + int_x2.w / 2, y: int_x2.y },
       { x: mux.x - mux.w / 2, y: int_x2.y }
     ], `x2=${(x2_val * 100).toFixed(1)}cm`, '#0284C7');
+
+    // Branch 4 Dot (Displacement 2)
+    ctx.fillStyle = '#1E293B';
+    ctx.beginPath(); ctx.arc(bx2_x, int_x2.y, 3.5, 0, 2 * Math.PI); ctx.fill();
+
+    // ── Mass 1 Ground Feedback Taps ──────────────────────────────────────────
+    if (c1 > 0) {
+      drawWire([
+        { x: bx1, y: int_v1.y },
+        { x: bx1, y: gain_c1.y },
+        { x: gain_c1.x + gain_c1.w / 2, y: gain_c1.y }
+      ]);
+    }
+    if (k1 > 0) {
+      drawWire([
+        { x: bx2, y: int_x1.y },
+        { x: bx2, y: gain_k1.y },
+        { x: gain_k1.x + gain_k1.w / 2, y: gain_k1.y }
+      ]);
+    }
+
+    // ── Inter-Mass Coupling Inputs (c12 takes Δv, k12 takes Δx) ──────────────
+    if (c12 > 0) {
+      // Relative velocity input taps (+v1 from bx1, -v2 from bx2_v)
+      drawWire([
+        { x: bx1, y: int_v1.y },
+        { x: bx1, y: gain_c12.y - 7 },
+        { x: gain_c12.x + gain_c12.w / 2, y: gain_c12.y - 7 }
+      ]);
+      drawWire([
+        { x: bx2_v, y: int_v2.y },
+        { x: bx2_v, y: gain_c12.y + 7 },
+        { x: gain_c12.x + gain_c12.w / 2, y: gain_c12.y + 7 }
+      ]);
+    }
+
+    if (k12 > 0) {
+      // Relative displacement input taps (+x1 from bx2, -x2 from bx2_x)
+      drawWire([
+        { x: bx2, y: int_x1.y },
+        { x: bx2, y: gain_k12.y - 7 },
+        { x: gain_k12.x + gain_k12.w / 2, y: gain_k12.y - 7 }
+      ]);
+      drawWire([
+        { x: bx2_x, y: int_x2.y },
+        { x: bx2_x, y: gain_k12.y + 7 },
+        { x: gain_k12.x + gain_k12.w / 2, y: gain_k12.y + 7 }
+      ]);
+    }
+
+    // ── Mass 2 Ground Feedback Taps ──────────────────────────────────────────
+    if (c2 > 0) {
+      drawWire([
+        { x: bx2_v, y: int_v2.y },
+        { x: bx2_v, y: _gain_c2.y },
+        { x: _gain_c2.x + _gain_c2.w / 2, y: _gain_c2.y }
+      ]);
+    }
+    if (k2 > 0) {
+      drawWire([
+        { x: bx2_x, y: int_x2.y },
+        { x: bx2_x, y: _gain_k2.y },
+        { x: _gain_k2.x + _gain_k2.w / 2, y: _gain_k2.y }
+      ]);
+    }
+
+    // ── Clean Unified Feedback Trunk Bus into Summing Junction 1 (Σ₁) ────────
+    // Negative feedback forces (Fd1, Fs1, Fd12, Fs12) merge cleanly into ONE single vertical line entering sum1
+    const feedbackList1 = [];
+    if (c1 > 0) feedbackList1.push({ y: gain_c1.y, block: gain_c1, badge: `Fd1=${Fd1_val.toFixed(1)}N`, color: '#D97706', badgeX: (gain_c1.x - gain_c1.w / 2 + sum1.x) / 2 });
+    if (k1 > 0) feedbackList1.push({ y: gain_k1.y, block: gain_k1, badge: `Fs1=${Fs1_val.toFixed(1)}N`, color: '#2563EB', badgeX: (gain_k1.x - gain_k1.w / 2 + sum1.x) / 2 + 15 });
+    if (c12 > 0) feedbackList1.push({ y: gain_c12.y - 7, block: gain_c12, badge: `Fd12=${Fd12_val.toFixed(1)}N`, color: '#D97706', badgeX: (gain_c12.x - gain_c12.w / 2 + sum1.x) / 2 - 10 });
+    if (k12 > 0) feedbackList1.push({ y: gain_k12.y - 7, block: gain_k12, badge: `Fs12=${Fs12_val.toFixed(1)}N`, color: '#2563EB', badgeX: (gain_k12.x - gain_k12.w / 2 + sum1.x) / 2 + 10 });
+
+    if (feedbackList1.length > 0) {
+      const maxFbY1 = Math.max(...feedbackList1.map(f => f.y));
+
+      // Draw single vertical trunk entering bottom port of sum1 with ONE arrowhead
+      drawWire([
+        { x: sum1.x, y: maxFbY1 },
+        { x: sum1.x, y: sum1.y + sum1.r }
+      ]);
+
+      // Horizontal branches connecting each block to the central bus
+      feedbackList1.forEach(f => {
+        const startX = f.block.x - f.block.w / 2;
+        ctx.strokeStyle = '#1E293B';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(startX, f.y);
+        ctx.lineTo(sum1.x, f.y);
+        ctx.stroke();
+
+        // Junction dot where wire meets the central trunk
+        if (f.y < maxFbY1) {
+          ctx.fillStyle = '#1E293B';
+          ctx.beginPath();
+          ctx.arc(sum1.x, f.y, 3.0, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        // Distinct non-overlapping badge
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(f.badgeX - 28, f.y - 14, 56, 13, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = f.color;
+        ctx.font = '700 8.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(f.badge, f.badgeX, f.y - 8);
+        ctx.restore();
+      });
+    }
+
+    // ── Clean Unified Coupling Bus into Summing Junction 2 (Σ₂) from Above ────
+    // Coupling action forces (+Fd12, +Fs12) merge cleanly into ONE single vertical line entering sum2 top
+    const couplingList2 = [];
+    if (c12 > 0) couplingList2.push({ y: gain_c12.y + 7, block: gain_c12, badge: '+Fd12', color: '#15803D', badgeX: (gain_c12.x - gain_c12.w / 2 + sum2.x) / 2 - 10 });
+    if (k12 > 0) couplingList2.push({ y: gain_k12.y + 7, block: gain_k12, badge: '+Fs12', color: '#15803D', badgeX: (gain_k12.x - gain_k12.w / 2 + sum2.x) / 2 + 10 });
+
+    if (couplingList2.length > 0) {
+      const minCpY2 = Math.min(...couplingList2.map(c => c.y));
+
+      // Draw single vertical coupling trunk entering top port of sum2 with ONE arrowhead
+      drawWire([
+        { x: sum2.x, y: minCpY2 },
+        { x: sum2.x, y: sum2.y - sum2.r }
+      ]);
+
+      // Horizontal branches connecting each coupling block to sum2 top trunk
+      couplingList2.forEach(c => {
+        const startX = c.block.x - c.block.w / 2;
+        ctx.strokeStyle = '#1E293B';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(startX, c.y);
+        ctx.lineTo(sum2.x, c.y);
+        ctx.stroke();
+
+        if (c.y > minCpY2) {
+          ctx.fillStyle = '#1E293B';
+          ctx.beginPath();
+          ctx.arc(sum2.x, c.y, 3.0, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(c.badgeX - 22, c.y - 14, 44, 13, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = c.color;
+        ctx.font = '700 8.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(c.badge, c.badgeX, c.y - 8);
+        ctx.restore();
+      });
+    }
+
+    // ── Clean Unified Ground Feedback Bus into Summing Junction 2 (Σ₂) from Below ─
+    // Ground damping/spring forces (Fd2, Fs2) merge cleanly into ONE single vertical line entering sum2 bottom
+    const groundList2 = [];
+    if (c2 > 0) groundList2.push({ y: _gain_c2.y, block: _gain_c2, badge: `Fd2=${Fd2_val.toFixed(1)}N`, color: '#D97706', badgeX: (_gain_c2.x - _gain_c2.w / 2 + sum2.x) / 2 });
+    if (k2 > 0) groundList2.push({ y: _gain_k2.y, block: _gain_k2, badge: `Fs2=${Fs2_val.toFixed(1)}N`, color: '#2563EB', badgeX: (_gain_k2.x - _gain_k2.w / 2 + sum2.x) / 2 + 15 });
+
+    if (groundList2.length > 0) {
+      const maxGndY2 = Math.max(...groundList2.map(g => g.y));
+
+      drawWire([
+        { x: sum2.x, y: maxGndY2 },
+        { x: sum2.x, y: sum2.y + sum2.r }
+      ]);
+
+      groundList2.forEach(g => {
+        const startX = g.block.x - g.block.w / 2;
+        ctx.strokeStyle = '#1E293B';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(startX, g.y);
+        ctx.lineTo(sum2.x, g.y);
+        ctx.stroke();
+
+        if (g.y < maxGndY2) {
+          ctx.fillStyle = '#1E293B';
+          ctx.beginPath();
+          ctx.arc(sum2.x, g.y, 3.0, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(g.badgeX - 28, g.y - 14, 56, 13, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = g.color;
+        ctx.font = '700 8.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(g.badge, g.badgeX, g.y - 8);
+        ctx.restore();
+      });
+    }
 
     // ── Wires into Mux and Scope ─────────────────────────────────────────────
     drawWire([
@@ -4072,8 +5107,7 @@ function drawSimulinkCanvas(
     ctx.fillStyle = '#15803D';
     ctx.fillText('+', sum1.x - sum1.r + 5, sum1.y - 6);
     ctx.fillStyle = '#DC2626';
-    ctx.fillText('-', sum1.x - 7, sum1.y + sum1.r - 4);
-    ctx.fillText('-', sum1.x + 7, sum1.y + sum1.r - 4);
+    ctx.fillText('-', sum1.x, sum1.y + sum1.r - 4);
 
     ctx.fillStyle = '#64748B';
     ctx.font = '600 8.5px monospace';
@@ -4261,7 +5295,9 @@ function drawSimulinkCanvas(
 
     ctx.font = '800 10.5px monospace';
     ctx.fillStyle = '#15803D';
-    ctx.fillText('+', sum2.x - 7, sum2.y - sum2.r + 7);
+    ctx.fillText('+', sum2.x, sum2.y - sum2.r + 7);
+    ctx.fillStyle = '#DC2626';
+    ctx.fillText('-', sum2.x, sum2.y + sum2.r - 4);
 
     ctx.fillStyle = '#64748B';
     ctx.font = '600 8.5px monospace';
@@ -4333,6 +5369,58 @@ function drawSimulinkCanvas(
     ctx.font = '600 8.5px system-ui';
     ctx.fillText('Integrator 4 (ẋ₂→x₂)', int_x2.x, int_x2.y + int_x2.h / 2 + 10);
     ctx.restore();
+
+    // Ground Gain c2 (Damper)
+    if (c2 > 0) {
+      ctx.save();
+      ctx.fillStyle = '#FEF3C7';
+      ctx.strokeStyle = '#D97706';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(_gain_c2.x + _gain_c2.w / 2, _gain_c2.y - _gain_c2.h / 2);
+      ctx.lineTo(_gain_c2.x - _gain_c2.w / 2, _gain_c2.y);
+      ctx.lineTo(_gain_c2.x + _gain_c2.w / 2, _gain_c2.y + _gain_c2.h / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#92400E';
+      ctx.font = '700 11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('c₂', _gain_c2.x + 3, _gain_c2.y);
+
+      ctx.fillStyle = '#64748B';
+      ctx.font = '600 8px monospace';
+      ctx.fillText(`c₂=${c2.toFixed(1)}`, _gain_c2.x, _gain_c2.y + _gain_c2.h / 2 + 9);
+      ctx.restore();
+    }
+
+    // Ground Gain k2 (Spring)
+    if (k2 > 0) {
+      ctx.save();
+      ctx.fillStyle = '#EFF6FF';
+      ctx.strokeStyle = '#2563EB';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(_gain_k2.x + _gain_k2.w / 2, _gain_k2.y - _gain_k2.h / 2);
+      ctx.lineTo(_gain_k2.x - _gain_k2.w / 2, _gain_k2.y);
+      ctx.lineTo(_gain_k2.x + _gain_k2.w / 2, _gain_k2.y + _gain_k2.h / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1E40AF';
+      ctx.font = '700 11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('k₂', _gain_k2.x + 3, _gain_k2.y);
+
+      ctx.fillStyle = '#64748B';
+      ctx.font = '600 8px monospace';
+      ctx.fillText(`k₂=${k2.toFixed(0)}`, _gain_k2.x, _gain_k2.y + _gain_k2.h / 2 + 9);
+      ctx.restore();
+    }
 
     // Mux Block
     ctx.save();
@@ -4559,20 +5647,15 @@ function drawSimulinkCanvas(
   ctx.fill();
 
   // Wire 5: Branch 1 down -> Gain c (Damper)
-  drawWire([
-    { x: bx1, y: int_v.y },
-    { x: bx1, y: gain_c.y },
-    { x: gain_c.x + gain_c.w / 2, y: gain_c.y }
-  ]);
+  if (c > 0) {
+    drawWire([
+      { x: bx1, y: int_v.y },
+      { x: bx1, y: gain_c.y },
+      { x: gain_c.x + gain_c.w / 2, y: gain_c.y }
+    ]);
+  }
 
-  // Wire 6: Gain c -> Sum (-)
-  drawWire([
-    { x: gain_c.x - gain_c.w / 2, y: gain_c.y },
-    { x: sum.x - 5, y: gain_c.y },
-    { x: sum.x - 5, y: sum.y + sum.r }
-  ], `Fd=${Fd_val.toFixed(1)}N`, '#D97706');
-
-  // Wire 7: Integrator 2 -> Branch 2 -> Mux
+  // Wire 6: Integrator 2 -> Branch 2 -> Mux
   const bx2 = (int_x.x + mux.x) / 2;
   drawWire([
     { x: int_x.x + int_x.w / 2, y: int_x.y },
@@ -4585,21 +5668,64 @@ function drawSimulinkCanvas(
   ctx.arc(bx2, int_x.y, 3.5, 0, 2 * Math.PI);
   ctx.fill();
 
-  // Wire 8: Branch 2 down -> Gain k (Spring)
-  drawWire([
-    { x: bx2, y: int_x.y },
-    { x: bx2, y: gain_k.y },
-    { x: gain_k.x + gain_k.w / 2, y: gain_k.y }
-  ]);
+  // Wire 7: Branch 2 down -> Gain k (Spring)
+  if (k > 0) {
+    drawWire([
+      { x: bx2, y: int_x.y },
+      { x: bx2, y: gain_k.y },
+      { x: gain_k.x + gain_k.w / 2, y: gain_k.y }
+    ]);
+  }
 
-  // Wire 9: Gain k -> Sum (-)
-  drawWire([
-    { x: gain_k.x - gain_k.w / 2, y: gain_k.y },
-    { x: sum.x + 5, y: gain_k.y },
-    { x: sum.x + 5, y: sum.y + sum.r }
-  ], `Fs=${Fs_val.toFixed(1)}N`, '#2563EB');
+  // ── Unified Negative Feedback Bus for 1-DOF ─────────────────────────────
+  const fbList1DOF = [];
+  if (c > 0) fbList1DOF.push({ y: gain_c.y, block: gain_c, badge: `Fd=${Fd_val.toFixed(1)}N`, color: '#D97706', badgeX: (gain_c.x - gain_c.w / 2 + sum.x) / 2 });
+  if (k > 0) fbList1DOF.push({ y: gain_k.y, block: gain_k, badge: `Fs=${Fs_val.toFixed(1)}N`, color: '#2563EB', badgeX: (gain_k.x - gain_k.w / 2 + sum.x) / 2 + 15 });
 
-  // Wire 10: Velocity tap into Mux
+  if (fbList1DOF.length > 0) {
+    const maxFbY = Math.max(...fbList1DOF.map(f => f.y));
+
+    // Single vertical trunk entering sum from bottom with ONE arrowhead
+    drawWire([
+      { x: sum.x, y: maxFbY },
+      { x: sum.x, y: sum.y + sum.r }
+    ]);
+
+    fbList1DOF.forEach(f => {
+      const startX = f.block.x - f.block.w / 2;
+      ctx.strokeStyle = '#1E293B';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(startX, f.y);
+      ctx.lineTo(sum.x, f.y);
+      ctx.stroke();
+
+      if (f.y < maxFbY) {
+        ctx.fillStyle = '#1E293B';
+        ctx.beginPath();
+        ctx.arc(sum.x, f.y, 3.0, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(f.badgeX - 28, f.y - 14, 56, 13, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = f.color;
+      ctx.font = '700 8.5px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(f.badge, f.badgeX, f.y - 8);
+      ctx.restore();
+    });
+  }
+
+  // Wire 8: Velocity tap into Mux
   drawWire([
     { x: bx1, y: int_v.y },
     { x: bx1, y: int_v.y - 45 },
@@ -4607,13 +5733,13 @@ function drawSimulinkCanvas(
     { x: mux.x - mux.w / 2, y: mux.y + 12 }
   ]);
 
-  // Wire 11: Mux -> Scope
+  // Wire 9: Mux -> Scope
   drawWire([
     { x: mux.x + mux.w / 2, y: mux.y },
     { x: scope.x - scope.w / 2, y: scope.y }
   ], 'Signals', '#1E293B');
 
-  // Wire 12: Knob -> Force block dashed link
+  // Wire 10: Knob -> Force block dashed link
   ctx.save();
   ctx.setLineDash([3, 3]);
   ctx.strokeStyle = '#94A3B8';
@@ -4678,8 +5804,7 @@ function drawSimulinkCanvas(
   ctx.fillStyle = '#15803D';
   ctx.fillText('+', sum.x - sum.r + 5, sum.y - 6);
   ctx.fillStyle = '#DC2626';
-  ctx.fillText('-', sum.x - 7, sum.y + sum.r - 4);
-  ctx.fillText('-', sum.x + 7, sum.y + sum.r - 4);
+  ctx.fillText('-', sum.x, sum.y + sum.r - 4);
 
   ctx.fillStyle = '#64748B';
   ctx.font = '600 8.5px monospace';
