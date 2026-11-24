@@ -163,12 +163,15 @@ export default function App() {
     if (simType === 'simple_pendulum' || simType === 'compound_pendulum') {
       setReverseTarget('period');
       setReverseVarKey('length');
+      setReverseTargetVal(2.0);
     } else if (simType === 'slider_crank') {
       setReverseTarget('stroke');
       setReverseVarKey('crank_length');
+      setReverseTargetVal(0.2);
     } else if (simType === 'four_bar') {
       setReverseTarget('rocker_range_deg');
       setReverseVarKey('link_ground');
+      setReverseTargetVal(60.0);
     }
     setReverseResult(null);
   }, [simType]);
@@ -284,7 +287,9 @@ export default function App() {
       }
     }
 
-    setLoading(true);
+    if (startPlayback) {
+      setLoading(true);
+    }
 
     if (debounceSimRef.current) {
       clearTimeout(debounceSimRef.current);
@@ -334,7 +339,9 @@ export default function App() {
       // Backend offline or slow: smooth client-side simulation continues seamlessly
       console.warn('Backend service note:', e.message);
     } finally {
-      setLoading(false);
+      if (startPlayback) {
+        setLoading(false);
+      }
     }
   }, [simType, params, drawCanvas, showToast, viewMode]);
 
@@ -495,7 +502,7 @@ export default function App() {
           if (res.data?.data?.time?.length > 0) {
             simDataRef.current = res.data.data;
           }
-        } catch (_) {}
+        } catch {}
       }, 500);
     }
   }, [backendOnline, drawCanvas]);
@@ -671,8 +678,8 @@ export default function App() {
         }
 
         // Decouple heavy React reconciliation from 60-144 FPS animation loop
-        // Throttling state update to ~30 FPS eliminates micro-stutters and dropped frames
-        if (timestamp - lastReactUpdate >= 32) {
+        // Throttling timeline scrubber state updates to ~20 FPS eliminates micro-stutters
+        if (timestamp - lastReactUpdate >= 48) {
           lastReactUpdate = timestamp;
           setAnimIdx(localIdx);
         }

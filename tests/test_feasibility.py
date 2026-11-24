@@ -4,7 +4,6 @@ Verifies that all physical constraints, kinematic checks, and diagnostic contrac
 return the correct statuses, severities, and structured explanation fields.
 """
 
-import pytest
 from validation.feasibility import check_feasibility
 
 

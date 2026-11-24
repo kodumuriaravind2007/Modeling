@@ -41,6 +41,7 @@ const MathModel = ({ simType, params }) => {
   };
 
   const isPendulum = simType === 'simple_pendulum' || simType === 'compound_pendulum';
+  const isVibratory = isPendulum || simType === 'smd' || simType === 'spring_mass_damper';
 
   // Build parameter chips for display
   const paramChips = useMemo(() => {
@@ -60,14 +61,14 @@ const MathModel = ({ simType, params }) => {
     return chips;
   }, [analogy]);
 
-  // Damping classification for pendulums
+  // Damping classification for vibratory systems
   const dampingClass = useMemo(() => {
-    if (!isPendulum || analogy.zeta === undefined) return '';
+    if (!isVibratory || !analogy || analogy.zeta === undefined) return '';
     if (analogy.zeta === 0) return 'Undamped';
     if (analogy.zeta < 1) return 'Underdamped';
     if (analogy.zeta === 1) return 'Critically Damped';
     return 'Overdamped';
-  }, [isPendulum, analogy]);
+  }, [isVibratory, analogy]);
 
   if (!model) return null;
 
@@ -77,7 +78,7 @@ const MathModel = ({ simType, params }) => {
       <div className="math-model-header">
         <h2 className="math-model-title">📐 Mathematical Model — {model.title}</h2>
         <p className="math-model-subtitle">
-          Governing equations, free body diagram, and {isPendulum ? 'mechanical-electrical analogy' : 'kinematic relationships'}
+          Governing equations, free body diagram, and {isVibratory ? 'mechanical-electrical analogy' : 'kinematic relationships'}
         </p>
       </div>
 
@@ -99,7 +100,7 @@ const MathModel = ({ simType, params }) => {
           </EquationCard>
 
           {/* With Current Values */}
-          {substituted.eqn && (
+          {substituted?.eqn && (
             <EquationCard title="With Your Parameter Values" icon="🔢">
               <EquationBlock latex={substituted.eqn} label="Substituted Values" />
               {substituted.computed && (
@@ -110,9 +111,9 @@ const MathModel = ({ simType, params }) => {
 
           {/* Standard Vibration Form */}
           {model.standardForm && model.standardForm !== '-' && (
-            <EquationCard title={isPendulum ? "Standard Vibration Form" : "Velocity Equation"} icon="📊">
+            <EquationCard title={isVibratory ? "Standard Vibration Form" : "Velocity Equation"} icon="📊">
               <EquationBlock latex={model.standardForm} />
-              {isPendulum && dampingClass && (
+              {isVibratory && dampingClass && (
                 <div className="damping-badge-row">
                   <span className="damping-label">Damping Classification:</span>
                   <span className={`damping-badge damping-${dampingClass.toLowerCase().replace(' ', '-')}`}>
@@ -125,17 +126,17 @@ const MathModel = ({ simType, params }) => {
 
           {/* State Space Form */}
           <EquationCard title="State Space & Matrix Form" icon="🔄">
-            <EquationBlock latex={stateMatrix.symbolic || model.stateVector} label="Symbolic State Derivative Vector" />
-            {stateMatrix.evaluated && (
+            <EquationBlock latex={stateMatrix?.symbolic || model.stateVector} label="Symbolic State Derivative Vector" />
+            {stateMatrix?.evaluated && (
               <EquationBlock latex={stateMatrix.evaluated} label="Live Evaluated Dynamic Matrix (Substituted)" />
             )}
-            {stateMatrix.linearEvaluated && (
+            {stateMatrix?.linearEvaluated && (
               <EquationBlock latex={stateMatrix.linearEvaluated} label="Linear State Matrix / System Metric" />
             )}
           </EquationCard>
 
-          {/* Energy Equations (pendulums only) */}
-          {isPendulum && model.energyEquations && (
+          {/* Energy Equations */}
+          {isVibratory && model.energyEquations && model.energyEquations.KE !== '-' && (
             <EquationCard title="Energy Equations" icon="⚡">
               <EquationBlock latex={model.energyEquations.KE} label="Kinetic Energy" />
               <EquationBlock latex={model.energyEquations.PE} label="Potential Energy" />
@@ -155,8 +156,8 @@ const MathModel = ({ simType, params }) => {
 
           {/* Equivalent Circuit / Kinematic Ratios */}
           <EquationCard
-            title={isPendulum ? "Equivalent RLC Circuit" : "Kinematic Relationships"}
-            icon={isPendulum ? "🔌" : "🔗"}
+            title={isVibratory ? "Equivalent RLC Circuit" : "Kinematic Relationships"}
+            icon={isVibratory ? "🔌" : "🔗"}
           >
             <CircuitDiagram
               simType={simType}
@@ -167,8 +168,8 @@ const MathModel = ({ simType, params }) => {
             />
           </EquationCard>
 
-          {/* Analogy Table (pendulums only) */}
-          {isPendulum && (
+          {/* Analogy Table (vibratory only) */}
+          {isVibratory && (
             <EquationCard title="Mechanical ↔ Electrical Analogy" icon="⚡">
               <div className="analogy-toggle-row">
                 <button
@@ -215,9 +216,9 @@ const MathModel = ({ simType, params }) => {
                           <span className="circuit-value-symbol">Lₑ</span>
                           <span className="circuit-value-type">Inductance (Inertia)</span>
                         </div>
-                        <div className="circuit-value-num">{analogy.L_e?.toFixed(4)} <span className="circuit-unit">H</span></div>
+                        <div className="circuit-value-num">{analogy?.L_e?.toFixed(4)} <span className="circuit-unit">H</span></div>
                         <div className="circuit-value-meaning">
-                          {simType === 'simple_pendulum' ? '= m · L²' : '= I_pivot = m · L² / 3'}
+                          {simType === 'simple_pendulum' ? '= m · L²' : (simType === 'smd' || simType === 'spring_mass_damper') ? '= m' : '= I_pivot = m · L² / 3'}
                         </div>
                       </div>
                       <div className="circuit-value-item resistance">
@@ -225,7 +226,7 @@ const MathModel = ({ simType, params }) => {
                           <span className="circuit-value-symbol">R</span>
                           <span className="circuit-value-type">Resistance (Damping)</span>
                         </div>
-                        <div className="circuit-value-num">{analogy.R?.toFixed(4)} <span className="circuit-unit">Ω</span></div>
+                        <div className="circuit-value-num">{analogy?.R?.toFixed(4)} <span className="circuit-unit">Ω</span></div>
                         <div className="circuit-value-meaning">= b (viscous damping)</div>
                       </div>
                       <div className="circuit-value-item capacitance">
@@ -233,9 +234,9 @@ const MathModel = ({ simType, params }) => {
                           <span className="circuit-value-symbol">C</span>
                           <span className="circuit-value-type">Capacitance (Compliance)</span>
                         </div>
-                        <div className="circuit-value-num">{analogy.C?.toFixed(4)} <span className="circuit-unit">F</span></div>
+                        <div className="circuit-value-num">{analogy?.C?.toFixed(4)} <span className="circuit-unit">F</span></div>
                         <div className="circuit-value-meaning">
-                          {simType === 'simple_pendulum' ? '= 1 / (m · g · L)' : '= 1 / (m · g · d)'}
+                          {simType === 'simple_pendulum' ? '= 1 / (m · g · L)' : (simType === 'smd' || simType === 'spring_mass_damper') ? '= 1 / k' : '= 1 / (m · g · d)'}
                         </div>
                       </div>
                     </div>
@@ -272,6 +273,10 @@ const MathModel = ({ simType, params }) => {
                     if (p.symbol === 'g') liveVal = Number(params?.gravity || 9.81).toFixed(2);
                     if (p.symbol === 'b') liveVal = Number(params?.damping || 0.1).toFixed(3);
                     if (p.symbol === 'd') liveVal = ((Number(params?.length || 1.0)) / 2).toFixed(2);
+                  } else if (simType === 'smd' || simType === 'spring_mass_damper') {
+                    if (p.symbol === 'm') liveVal = Number(params?.mass || params?.m || 1.0).toFixed(2);
+                    if (p.symbol === 'k') liveVal = Number(params?.stiffness || params?.k || 20.0).toFixed(2);
+                    if (p.symbol === 'c') liveVal = Number(params?.damping || params?.c || 0.5).toFixed(3);
                   }
 
                   return (

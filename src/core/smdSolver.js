@@ -59,6 +59,116 @@ export function assembleMCK(masses, springs, dampers, groundedRight = false) {
 }
 
 /**
+ * Generalized eigenvalue solver for n-DOF mass-spring-damper systems using Jacobi rotations:
+ * Solves (M^-1/2 * K * M^-1/2) * v = lambda * v, with mode shapes phi = M^-1/2 * v.
+ */
+function solveGeneralModal(masses, springs, dampers) {
+  const { C, K, n } = assembleMCK(masses, springs, dampers);
+  if (n === 0) {
+    return { frequenciesRad: [], frequenciesHz: [], dampingRatios: [], modeShapes: [], n: 0 };
+  }
+
+  const invSqrtM = masses.map(m => 1.0 / Math.sqrt(Math.max(1e-6, m)));
+  const A = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      A[i][j] = invSqrtM[i] * K[i][j] * invSqrtM[j];
+    }
+  }
+
+  const V = Array.from({ length: n }, (_, i) => {
+    const row = new Array(n).fill(0);
+    row[i] = 1.0;
+    return row;
+  });
+
+  const maxSweeps = 50;
+  for (let sweep = 0; sweep < maxSweeps; sweep++) {
+    let maxOffDiag = 0;
+    for (let p = 0; p < n - 1; p++) {
+      for (let q = p + 1; q < n; q++) {
+        const val = Math.abs(A[p][q]);
+        if (val > maxOffDiag) maxOffDiag = val;
+      }
+    }
+    if (maxOffDiag < 1e-12) break;
+
+    for (let p = 0; p < n - 1; p++) {
+      for (let q = p + 1; q < n; q++) {
+        const Apq = A[p][q];
+        if (Math.abs(Apq) < 1e-15) continue;
+
+        const App = A[p][p];
+        const Aqq = A[q][q];
+        const tau = (Aqq - App) / (2.0 * Apq);
+        const t = (tau >= 0 ? 1.0 : -1.0) / (Math.abs(tau) + Math.sqrt(1.0 + tau * tau));
+        const c = 1.0 / Math.sqrt(1.0 + t * t);
+        const s = t * c;
+
+        A[p][p] = App - t * Apq;
+        A[q][q] = Aqq + t * Apq;
+        A[p][q] = 0;
+        A[q][p] = 0;
+
+        for (let k = 0; k < n; k++) {
+          if (k !== p && k !== q) {
+            const Akp = A[k][p];
+            const Akq = A[k][q];
+            A[k][p] = c * Akp - s * Akq;
+            A[p][k] = A[k][p];
+            A[k][q] = s * Akp + c * Akq;
+            A[q][k] = A[k][q];
+          }
+        }
+
+        for (let k = 0; k < n; k++) {
+          const Vkp = V[k][p];
+          const Vkq = V[k][q];
+          V[k][p] = c * Vkp - s * Vkq;
+          V[k][q] = s * Vkp + c * Vkq;
+        }
+      }
+    }
+  }
+
+  const modes = [];
+  for (let j = 0; j < n; j++) {
+    const lambda = Math.max(0, A[j][j]);
+    const freqRad = Math.sqrt(lambda);
+    const shape = new Array(n);
+    for (let i = 0; i < n; i++) {
+      shape[i] = invSqrtM[i] * V[i][j];
+    }
+    modes.push({ lambda, freqRad, shape });
+  }
+
+  modes.sort((a, b) => a.freqRad - b.freqRad);
+
+  const frequenciesRad = modes.map(m => m.freqRad);
+  const frequenciesHz = frequenciesRad.map(w => w / (2.0 * Math.PI));
+  const modeShapes = modes.map(m => m.shape);
+
+  const dampingRatios = modes.map(({ freqRad, shape }) => {
+    if (freqRad < 1e-6) return 0;
+    let cMod = 0;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        cMod += shape[i] * C[i][j] * shape[j];
+      }
+    }
+    return cMod / (2.0 * freqRad);
+  });
+
+  return {
+    frequenciesRad,
+    frequenciesHz,
+    dampingRatios,
+    modeShapes,
+    n
+  };
+}
+
+/**
  * Performs generalized eigenvalue modal analysis on the undamped system:
  *    det(K - omega^2 * M) = 0
  * 

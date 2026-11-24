@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tooltipData.js
  * @description Educational tooltips and engineering descriptions for all mechanism parameters.
  */

@@ -99,7 +99,7 @@ function buildDogboneLink(length, width, thickness, mainMat, accentMat, steelMat
 }
 
 // Builds high-performance H-beam connecting rod with split big-end cap & rod bolts
-function buildHBeamConnectingRod(length, width, thickness, mainMat, capMat, steelMat) {
+function _buildHBeamConnectingRod(length, width, thickness, mainMat, capMat, steelMat) {
   const rodGroup = new THREE.Group();
   const bigEndRadius = width * 0.85;
   const smallEndRadius = width * 0.65;
@@ -164,7 +164,7 @@ function buildHBeamConnectingRod(length, width, thickness, mainMat, capMat, stee
 }
 
 // Builds high-detail cylindrical piston with 3 compression ring grooves and wrist pin
-function buildDetailedPiston(radius, length, bodyMat, ringMat, pinMat) {
+function _buildDetailedPiston(radius, length, bodyMat, ringMat, pinMat) {
   const pistonGroup = new THREE.Group();
 
   // Piston cylindrical body (aligned along X axis)
@@ -260,7 +260,7 @@ function createDimensionLabel(text, position, color = '#f8fafc', bgColor = 'rgba
   return sprite;
 }
 
-const createLabelSprite = (text, position, color = '#f8fafc', bgColor = 'rgba(23, 55, 112, 0.88)') =>
+const _createLabelSprite = (text, position, color = '#f8fafc', bgColor = 'rgba(23, 55, 112, 0.88)') =>
   createDimensionLabel(text, position, color, bgColor);
 
 // ── Dynamic Updatable HUD Badge for Real-time Velocity & Angle Telemetry ────
@@ -322,7 +322,7 @@ function createDynamicHUDLabel(initialText, position, scale = [0.65, 0.16, 1]) {
 }
 
 // ── Precision Rotary Protractor Dial for Drive Spindle Axis ─────────────────
-function buildRotaryProtractor(radius, color = 0x3561ee) {
+function _buildRotaryProtractor(radius, color = 0x3561ee) {
   const dialGroup = new THREE.Group();
   const ringGeo = new THREE.RingGeometry(radius * 0.985, radius * 1.015, 64);
   const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
@@ -366,7 +366,7 @@ function createVectorMesh(material) {
 }
 
 // ── Heavy CNC Machine Bed Plate with Center T-Slot and Chamfers ─────────────
-function buildMachineBed(length, width, height, mountMat, darkMat, steelMat) {
+function _buildMachineBed(length, width, height, mountMat, darkMat, steelMat) {
   const bedGroup = new THREE.Group();
 
   // 1. Heavy CNC Extruded Aluminum Bed Beam
@@ -655,7 +655,7 @@ function buildSchematicPiston(width, height, depth, blueMat, goldMat, pinMat) {
 }
 
 // ── Precision Brushed Flywheel & Dual-Balanced Crank Arm Assembly ───────────
-function buildFlywheelAndCrank(r, rFlywheel, mountMat, discMat, blueMat, webMat, pinMat, chromeMat) {
+function _buildFlywheelAndCrank(r, rFlywheel, mountMat, discMat, blueMat, webMat, pinMat, chromeMat) {
   const root = new THREE.Group();
 
   // Stationary Bearing Pedestal Block behind the flywheel (x=0)
@@ -811,7 +811,7 @@ function buildFlywheelAndCrank(r, rFlywheel, mountMat, discMat, blueMat, webMat,
 }
 
 // ── Builds High-Detail Cylindrical Piston with 3 Copper Rings and Pushrod ───
-function buildDetailedPistonWithRings(radius, length, steelMat, copperMat, chromeMat) {
+function _buildDetailedPistonWithRings(radius, length, steelMat, copperMat, chromeMat) {
   const pistonGroup = new THREE.Group();
 
   // 1. Polished Solid Steel Piston Body
@@ -858,7 +858,7 @@ function buildDetailedPistonWithRings(radius, length, steelMat, copperMat, chrom
 }
 
 // ── Builds Transparent Borosilicate Cylinder Assembly with Copper Rings ───
-function buildTransparentCylinderAssembly(
+function _buildTransparentCylinderAssembly(
   l,
   r,
   pistonRadius,
@@ -1475,7 +1475,7 @@ export const Scene3D = ({
 
   // Continuous physical time accumulator and drag status refs
   const continuousTimeRef = useRef(0);
-  const lastTickTimeRef = useRef(performance.now());
+  const lastTickTimeRef = useRef(0);
   const isDraggingRef = useRef(false);
   const currentDragAngleDegRef = useRef(params?.theta0 ?? 30);
   const lastTh4Ref = useRef(null);
@@ -1522,6 +1522,7 @@ export const Scene3D = ({
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     scene.background = new THREE.Color(0xf1f1f8);
+    scene.fog = new THREE.FogExp2(0xf1f1f8, 0.035);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.set(2.0, 1.4, 2.5);
@@ -1530,9 +1531,9 @@ export const Scene3D = ({
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.18;
     rendererRef.current = renderer;
 
     container.appendChild(renderer.domElement);
@@ -1547,26 +1548,27 @@ export const Scene3D = ({
     controls.autoRotateSpeed = 2.4;
     controlsRef.current = controls;
 
-    // High-Clarity Studio Lighting
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xdce1f0, 1.4);
+    // High-Clarity Studio 3-Point Industrial CAD Lighting
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xdce1f0, 1.35);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.35);
-    dirLight.position.set(4, 7, 5);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.50);
+    dirLight.position.set(4.5, 7.5, 5.5);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 25;
-    dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.bias = -0.0001;
+    dirLight.shadow.normalBias = 0.02;
     scene.add(dirLight);
 
-    const fillLight = new THREE.PointLight(0xeef0f8, 0.95, 20);
-    fillLight.position.set(-4, 3, 3);
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.85);
+    fillLight.position.set(-4.5, 3.5, 2.5);
     scene.add(fillLight);
 
-    const softRim = new THREE.DirectionalLight(0xeef0f8, 0.5);
-    softRim.position.set(0, -3, -4);
+    const softRim = new THREE.DirectionalLight(0x93c5fd, 0.65);
+    softRim.position.set(0, -2, -4);
     scene.add(softRim);
 
     // Floor Shadow Receiver Plane (Subtle soft ambient ground reflection)
@@ -1602,14 +1604,15 @@ export const Scene3D = ({
       lastTickTimeRef.current = now;
 
       // Advance continuous physical time and crank phase smoothly ONLY when playing and case is physically valid
-      const currentFeas = checkFeasibility(simTypeRef.current, paramsRef.current);
+      const liveP = (externalParamsRef || fallbackParamsRef).current;
+      const currentFeas = checkFeasibility(simTypeRef.current, liveP);
       const isCaseCorrect = currentFeas.status !== FEASIBILITY_STATUS.IMPOSSIBLE;
 
       if (isPlayingRef.current && !isDraggingRef.current && isCaseCorrect) {
         const deltaAdvance = deltaSec * (animSpeedRef.current || 1.0);
         continuousTimeRef.current += deltaAdvance;
 
-        const currentSpeed = Number(paramsRef.current?.crank_speed) || 60.0;
+        const currentSpeed = Number(liveP?.crank_speed) || 60.0;
         const currentOmega = (currentSpeed * 2 * Math.PI) / 60;
         crankThetaRef.current += deltaAdvance * currentOmega;
       }
@@ -1665,7 +1668,7 @@ export const Scene3D = ({
         }
       });
     };
-  }, []);
+  }, [externalParamsRef]);
 
   // ── Sync continuousTimeRef with animIdx ONLY when paused or scrubbed ──────
   useEffect(() => {
@@ -1907,8 +1910,18 @@ export const Scene3D = ({
     const handleFsChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+        setIsFullscreen(false);
+      }
+    };
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // ── Build 3D CAD Geometries (Decoupled from live slider jitter) ──────
@@ -1947,78 +1960,58 @@ export const Scene3D = ({
     // Material definitions for high-end industrial engineering aesthetic
     const chromeMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
-      metalness: 0.85,
-      roughness: 0.15
-    });
-    const polishedSteelMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.88,
-      roughness: 0.16
+      metalness: 0.92,
+      roughness: 0.12
     });
     const brushedAluminumMat = new THREE.MeshStandardMaterial({
-      color: 0xd1d5db,
-      metalness: 0.75,
-      roughness: 0.28
-    });
-    const copperMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      metalness: 0.85,
+      color: 0xe2e8f0,
+      metalness: 0.82,
       roughness: 0.22
     });
     const royalBlueMat = new THREE.MeshStandardMaterial({
       color: 0x2563eb,
-      metalness: 0.48,
-      roughness: 0.25
+      metalness: 0.65,
+      roughness: 0.20
     });
     const motorBlueMat = new THREE.MeshStandardMaterial({
       color: 0x1d4ed8,
-      metalness: 0.42,
-      roughness: 0.30
+      metalness: 0.58,
+      roughness: 0.24
     });
     const bluePrimaryMat = new THREE.MeshStandardMaterial({
       color: 0x264cb2,
-      metalness: 0.35,
-      roughness: 0.28
-    });
-    const blueActiveMat = new THREE.MeshStandardMaterial({
-      color: 0x3561ee,
-      metalness: 0.35,
-      roughness: 0.26
-    });
-    const blueLightMat = new THREE.MeshStandardMaterial({
-      color: 0x6f8ff4,
-      metalness: 0.30,
-      roughness: 0.30
+      metalness: 0.55,
+      roughness: 0.22
     });
     const palePeriwinkleMat = new THREE.MeshStandardMaterial({
       color: 0xeef0f8,
-      metalness: 0.25,
-      roughness: 0.35
+      metalness: 0.35,
+      roughness: 0.30
     });
     const mountMat = new THREE.MeshStandardMaterial({
       color: 0xdce1f0,
-      metalness: 0.45,
-      roughness: 0.32
+      metalness: 0.60,
+      roughness: 0.28
     });
     const steelPinMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
-      metalness: 0.65,
-      roughness: 0.22
+      metalness: 0.85,
+      roughness: 0.18
     });
     const darkSteelMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
-      metalness: 0.72,
-      roughness: 0.28
+      metalness: 0.78,
+      roughness: 0.30
     });
     const accentOrangeMat = new THREE.MeshStandardMaterial({
-      color: 0xdf7940,
-      metalness: 0.35,
-      roughness: 0.30
+      color: 0xf97316,
+      metalness: 0.40,
+      roughness: 0.24
     });
     const emeraldMat = new THREE.MeshStandardMaterial({
-      color: 0x2f7d5a,
-      metalness: 0.35,
-      roughness: 0.30
+      color: 0x10b981,
+      metalness: 0.45,
+      roughness: 0.25
     });
 
     // ── 1. SIMPLE PENDULUM ──────────────────────────────────────────────
@@ -2553,13 +2546,14 @@ export const Scene3D = ({
         controls.update();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simType, params?.crank_length, params?.conn_length, params?.link_ground, params?.link_crank, params?.link_coupler, params?.link_rocker, params?.coupler_offset_u, params?.coupler_offset_v, params?.coupler_tracer_offset]);
 
   // ── Continuous 60/120 FPS Hardware-Accelerated Kinematics Loop ───────
   useEffect(() => {
     updateTransformsRef.current = () => {
       const parts = dynamicPartsRef.current;
-      if (!parts) return;
+      if (!parts || parts.type !== simTypeRef.current) return;
       const curIdx = animIdxRef.current || 0;
 
       const liveData = simDataRef.current;
@@ -2995,7 +2989,7 @@ export const Scene3D = ({
         }
       }
     };
-  }, [simType]);
+  }, [simType, paramsRef]);
 
   return (
     <div ref={wrapperRef} className="scene3d-wrapper">
@@ -3004,6 +2998,23 @@ export const Scene3D = ({
         <span className="scene3d-header-dot" />
         <span className="scene3d-header-title">{getSubtitle(simType)}</span>
       </div>
+
+      {/* Prominent Fullscreen Exit Button */}
+      {isFullscreen && (
+        <button
+          type="button"
+          className="scene3d-exit-fullscreen-btn"
+          onClick={handleFullscreenToggle}
+          title="Exit Fullscreen (Esc)"
+          aria-label="Exit Fullscreen"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          <span>Exit Fullscreen (Esc)</span>
+        </button>
+      )}
 
       {/* Left Glassmorphic Quick Action CAD Tools */}
       <div className="scene3d-floating-tools">

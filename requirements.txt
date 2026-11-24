@@ -1,4 +1,4 @@
-﻿flask
+flask
 flask-cors
 numpy
 scipy
@@ -8,3 +8,4 @@ pandas
 matplotlib
 python-dotenv
 gunicorn
+pytest

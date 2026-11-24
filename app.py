@@ -5,7 +5,6 @@ and PDF/CSV export for 4 mechanical simulation modules.
 """
 
 import os
-import json
 import logging
 import io
 import mimetypes
@@ -38,7 +37,6 @@ from validation.analytical import (
     slider_crank_stroke,
     slider_crank_max_velocity,
     slider_crank_max_acceleration,
-    grashof_condition,
     four_bar_rocker_range
 )
 from validation.feasibility import check_feasibility
@@ -680,18 +678,22 @@ def time_step_study():
 
 @app.route('/export/csv', methods=['POST'])
 def export_csv():
-    data     = request.get_json(silent=True) or {}
-    sim_data = data.get('sim_data', {})
-    params   = data.get('params', {})
-    sim_type = data.get('sim_type', 'simple_pendulum')
+    try:
+        data     = request.get_json(silent=True) or {}
+        sim_data = data.get('sim_data', {})
+        params   = data.get('params', {})
+        sim_type = data.get('sim_type', 'simple_pendulum')
 
-    csv_bytes = generate_csv(sim_data, params, sim_type)
-    return send_file(
-        io.BytesIO(csv_bytes),
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name=f"{sim_type}_simulation.csv"
-    )
+        csv_bytes = generate_csv(sim_data, params, sim_type)
+        return send_file(
+            io.BytesIO(csv_bytes),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f"{sim_type}_simulation.csv"
+        )
+    except Exception as e:
+        logging.exception("Exception in /export/csv")
+        return jsonify({"status": "error", "message": f"Failed to generate CSV export: {str(e)}"}), 500
 
 
 # ================================================================
@@ -700,19 +702,23 @@ def export_csv():
 
 @app.route('/export/pdf', methods=['POST'])
 def export_pdf():
-    data       = request.get_json(silent=True) or {}
-    sim_data   = data.get('sim_data', {})
-    params     = data.get('params', {})
-    validation = data.get('validation', {})
-    sim_type   = data.get('sim_type', 'simple_pendulum')
+    try:
+        data       = request.get_json(silent=True) or {}
+        sim_data   = data.get('sim_data', {})
+        params     = data.get('params', {})
+        validation = data.get('validation', {})
+        sim_type   = data.get('sim_type', 'simple_pendulum')
 
-    pdf_bytes = generate_pdf(sim_data, params, validation, sim_type)
-    return send_file(
-        io.BytesIO(pdf_bytes),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f"{sim_type}_report.pdf"
-    )
+        pdf_bytes = generate_pdf(sim_data, params, validation, sim_type)
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f"{sim_type}_report.pdf"
+        )
+    except Exception as e:
+        logging.exception("Exception in /export/pdf")
+        return jsonify({"status": "error", "message": f"Failed to generate PDF report: {str(e)}"}), 500
 
 
 # ================================================================

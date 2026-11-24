@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const Navbar = ({
+export const Navbar = React.memo(({
   simType,
   simulations,
   activePanel,
@@ -187,4 +187,4 @@ export const Navbar = ({
       </div>
     </header>
   );
-};
+});

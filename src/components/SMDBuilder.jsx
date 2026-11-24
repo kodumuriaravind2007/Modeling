@@ -12,8 +12,6 @@ import { EquationBlock } from './EquationBlock.jsx';
 import { SimulinkScopeModal } from './SimulinkScopeModal.jsx';
 import { MatrixDisplay } from './MatrixDisplay.jsx';
 
-export { generateMatlabScript };
-
 // Polyfill CanvasRenderingContext2D.prototype.roundRect if missing
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, radii = 0) {
@@ -271,7 +269,7 @@ const PRESETS = {
   }
 };
 
-export function getDefaultSimulinkBlocks(massCount = 1) {
+function getDefaultSimulinkBlocks(massCount = 1) {
   if (massCount >= 2) {
     return {
       src_f1: { id: 'src_f1', type: 'source', x: 75, y: 75, w: 70, h: 38, label: 'Force F₁(t)' },
@@ -336,7 +334,6 @@ export const SMDBuilder = ({ onClose }) => {
   const [systemOrientation, setSystemOrientation] = useState(() => PRESETS.parallel_springs?.orientation || 'horizontal');
   const [copiedMatlab, setCopiedMatlab] = useState(false);
   const [showScopeModal, setShowScopeModal] = useState(false);
-  const backdropMouseDownRef = useRef(false);
 
   // Dynamic mass count synchronization for Simulink block diagram
   const primaryMassCount = nodes.filter(n => n.type === 'mass' && !n.isJunction && !n.id.startsWith('junc')).length;
@@ -2334,7 +2331,7 @@ export const SMDBuilder = ({ onClose }) => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [nodes, edges, isPlaying, playbackSpeed, selectedId, wiringTool, wireSource, simData, system, visualScale, hoveredNodeId, canvasMode, simulinkBlocks, classroomSolution, modalData, systemOrientation]);
+  }, [nodes, edges, isPlaying, playbackSpeed, selectedId, wiringTool, wireSource, simData, system, visualScale, hoveredNodeId, canvasMode, simulinkBlocks, classroomSolution, modalData, systemOrientation, primaryMassNodes]);
 
   // ── Chart Data for Real-Time Oscilloscope ───────────────────────────────────
   const timeChartData = useMemo(() => {
@@ -2377,33 +2374,17 @@ export const SMDBuilder = ({ onClose }) => {
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          backdropMouseDownRef.current = true;
-        }
-      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
-          backdropMouseDownRef.current = false;
+        if (e.target === e.currentTarget) {
           onClose();
         }
       }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
     >
       <div
         className="smd-builder-dialog"
-        onMouseDown={(e) => {
-          backdropMouseDownRef.current = false;
-          e.stopPropagation();
-        }}
         onClick={e => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="smd-builder-header">
@@ -3994,9 +3975,9 @@ export const SMDBuilder = ({ onClose }) => {
                       <EquationBlock latex={`\\mathbf{M} \\mathbf{\\ddot{x}} + \\mathbf{C} \\mathbf{\\dot{x}} + \\mathbf{K} \\mathbf{x} = \\mathbf{F}(t)`} />
                       <EquationBlock latex={`\\begin{bmatrix} ${(system.M[0][0] || 2).toFixed(1)} & 0 \\\\ 0 & ${(system.M[1][1] || 2).toFixed(1)} \\end{bmatrix} \\begin{bmatrix} \\ddot{x}_1 \\\\ \\ddot{x}_2 \\end{bmatrix} + \\begin{bmatrix} ${(system.C[0][0] || 0).toFixed(1)} & ${(system.C[0][1] || 0).toFixed(1)} \\\\ ${(system.C[1][0] || 0).toFixed(1)} & ${(system.C[1][1] || 0).toFixed(1)} \\end{bmatrix} \\begin{bmatrix} \\dot{x}_1 \\\\ \\dot{x}_2 \\end{bmatrix} + \\begin{bmatrix} ${(system.K[0][0] || 0).toFixed(0)} & ${(system.K[0][1] || 0).toFixed(0)} \\\\ ${(system.K[1][0] || 0).toFixed(0)} & ${(system.K[1][1] || 0).toFixed(0)} \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix} = \\begin{bmatrix} F_1(t) \\\\ 0 \\end{bmatrix}`} />
                       <div style={{ fontSize: '11.5px', color: '#334155', marginTop: '10px', lineHeight: '1.6' }}>
-                        • <strong>Dual Integrator Lanes:</strong> Lane 1 handles Mass 1 ($1/m_1, 1/s, 1/s$), Lane 2 handles Mass 2 ($1/m_2, 1/s, 1/s$)<br />
-                        • <strong>Coupling Blocks:</strong> Damper $c_{12}$ and spring $k_{12}$ driven by relative velocity $(\dot{x}_1 - \dot{x}_2)$ and relative displacement $(x_1 - x_2)$<br />
-                        • <strong>Newton's 3rd Law:</strong> Action force enters $\Sigma_2$ with $(+)$, reaction force enters $\Sigma_1$ with $(-)$
+                        • <strong>Dual Integrator Lanes:</strong> Lane 1 handles Mass 1 (1/m₁, 1/s, 1/s), Lane 2 handles Mass 2 (1/m₂, 1/s, 1/s)<br />
+                        • <strong>Coupling Blocks:</strong> Damper c₁₂ and spring k₁₂ driven by relative velocity (ẋ₁ − ẋ₂) and relative displacement (x₁ − x₂)<br />
+                        • <strong>Newton's 3rd Law:</strong> Action force enters Σ₂ with (+), reaction force enters Σ₁ with (−)
                       </div>
                     </div>
 
@@ -4188,7 +4169,7 @@ function drawClevisLug(ctx, x, y, dir, isWireSrc, isHovered) {
   ctx.restore();
 }
 
-function drawCGSymbol(ctx, cx, cy) {
+function _drawCGSymbol(ctx, cx, cy) {
   ctx.save();
   ctx.globalAlpha = 0.28; // Subtle CAD watermark that does not obscure telemetry text
   ctx.strokeStyle = '#64748B';

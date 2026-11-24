@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import MathModel from '../MathModel';
 
 export const LearnModal = ({
@@ -7,8 +7,6 @@ export const LearnModal = ({
   simType,
   params
 }) => {
-  const backdropMouseDownRef = useRef(false);
-
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -22,34 +20,18 @@ export const LearnModal = ({
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          backdropMouseDownRef.current = true;
-        }
-      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
-          backdropMouseDownRef.current = false;
+        if (e.target === e.currentTarget) {
           onClose();
         }
       }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="learn-modal-title"
     >
       <div
         className="learn-modal-dialog"
-        onMouseDown={(e) => {
-          backdropMouseDownRef.current = false;
-          e.stopPropagation();
-        }}
         onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="modal-header">

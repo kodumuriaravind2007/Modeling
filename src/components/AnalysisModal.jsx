@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Line, Scatter } from 'react-chartjs-2';
 import { HelpCard } from '../HelpCards';
 import { FeasibilityPanel } from './FeasibilityPanel';
@@ -84,7 +84,7 @@ const scatterOptsLight = (xTitle = 'θ (rad)', yTitle = 'ω (rad/s)') => ({
   }
 });
 
-export const AnalysisModal = ({
+export const AnalysisModal = React.memo(({
   isOpen,
   onClose,
   simType,
@@ -122,7 +122,6 @@ export const AnalysisModal = ({
 }) => {
   const [subTab, setSubTab] = useState('motion');
   const [localParams, setLocalParams] = useState(params);
-  const backdropMouseDownRef = useRef(false);
 
   useEffect(() => {
     setLocalParams(params);
@@ -236,34 +235,18 @@ export const AnalysisModal = ({
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          backdropMouseDownRef.current = true;
-        }
-      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
-          backdropMouseDownRef.current = false;
+        if (e.target === e.currentTarget) {
           onClose();
         }
       }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="analysis-modal-title"
     >
       <div
         className="analysis-modal-dialog"
-        onMouseDown={(e) => {
-          backdropMouseDownRef.current = false;
-          e.stopPropagation();
-        }}
         onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="modal-header">
@@ -1059,35 +1042,40 @@ export const AnalysisModal = ({
 
               {sensRes && (
                 <div className="tornado-container">
-                  {sensRes.metric_keys.map((m_key) => (
-                    <div key={m_key} className="table-card">
-                      <div className="table-card-header">
-                        <h3 className="table-title">Tornado Chart: {m_key.toUpperCase()}</h3>
-                      </div>
-                      <div className="tornado-list">
-                        {sensRes.tornado_data[m_key]?.map((d) => (
-                          <div key={d.param} className="tornado-row-clean">
-                            <div className="tornado-label">{d.param}</div>
-                            <div className="tornado-track">
-                              <div className="tornado-zero-line"></div>
-                              {d.pos_impact >= 0 ? (
-                                <div
-                                  className="tornado-bar pos"
-                                  style={{ width: `${Math.min(100, (d.pos_impact / (sensRes.tornado_data[m_key][0]?.abs_max_impact || 1)) * 48)}%` }}
-                                ></div>
-                              ) : (
-                                <div
-                                  className="tornado-bar neg"
-                                  style={{ width: `${Math.min(100, (Math.abs(d.pos_impact) / (sensRes.tornado_data[m_key][0]?.abs_max_impact || 1)) * 48)}%` }}
-                                ></div>
-                              )}
+                  {sensRes.metric_keys.map((m_key) => {
+                    const maxScale = Math.max(1e-4, Number(sensRes.tornado_data[m_key]?.[0]?.abs_max_impact) || 1);
+                    return (
+                      <div key={m_key} className="table-card">
+                        <div className="table-card-header">
+                          <h3 className="table-title">Tornado Chart: {m_key.toUpperCase()}</h3>
+                        </div>
+                        <div className="tornado-list">
+                          {sensRes.tornado_data[m_key]?.map((d) => (
+                            <div key={d.param} className="tornado-row-clean">
+                              <div className="tornado-label">{d.param}</div>
+                              <div className="tornado-track">
+                                <div className="tornado-zero-line"></div>
+                                {d.pos_impact >= 0 ? (
+                                  <div
+                                    className="tornado-bar pos"
+                                    style={{ width: `${Math.min(48, (d.pos_impact / maxScale) * 48)}%` }}
+                                    title={`+10% impact: +${d.pos_impact.toFixed(4)}`}
+                                  ></div>
+                                ) : (
+                                  <div
+                                    className="tornado-bar neg"
+                                    style={{ width: `${Math.min(48, (Math.abs(d.pos_impact) / maxScale) * 48)}%` }}
+                                    title={`+10% impact: ${d.pos_impact.toFixed(4)}`}
+                                  ></div>
+                                )}
+                              </div>
+                              <div className="tornado-index">S_i = {d.S_i.toFixed(3)}</div>
                             </div>
-                            <div className="tornado-index">S_i = {d.S_i.toFixed(3)}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1114,7 +1102,16 @@ export const AnalysisModal = ({
                     <select
                       className="form-select"
                       value={reverseTarget}
-                      onChange={e => setReverseTarget(e.target.value)}
+                      onChange={e => {
+                        const nextTarget = e.target.value;
+                        setReverseTarget(nextTarget);
+                        if (nextTarget === 'period') setReverseTargetVal(2.0);
+                        else if (nextTarget === 'max_omega') setReverseTargetVal(3.5);
+                        else if (nextTarget === 'stroke') setReverseTargetVal(0.2);
+                        else if (nextTarget === 'v_max') setReverseTargetVal(1.5);
+                        else if (nextTarget === 'a_max') setReverseTargetVal(40.0);
+                        else if (nextTarget === 'rocker_range_deg') setReverseTargetVal(60.0);
+                      }}
                     >
                       {simType === 'simple_pendulum' && (
                         <>
@@ -1262,4 +1259,4 @@ export const AnalysisModal = ({
       </div>
     </div>
   );
-};
+});

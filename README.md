@@ -1,4 +1,4 @@
-﻿# Mechanical Systems Simulation Platform
+# Mechanical Systems Simulation Platform
 
 An interactive engineering simulation and analysis platform for classical mechanical systems. Combines high-fidelity numerical integration (RK45), rigorous analytical validation, design optimization, sensitivity analysis, data export, and an embedded Google Gemini AI physics assistant.
 

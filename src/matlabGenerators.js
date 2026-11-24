@@ -239,14 +239,14 @@ grid on; xlabel('Crank Angle \\theta_2 (deg)'); ylabel('Accel (m/s^2)'); title('
 `;
   }
 
-  // four_bar
-  const a = Number(params?.link_crank || 1.0);
-  const b = Number(params?.link_coupler || 2.5);
-  const c = Number(params?.link_rocker || 3.0);
-  const d = Number(params?.link_ground || 4.0);
-  const N = Number(params?.crank_speed || 75);
+  if (simType === 'four_bar') {
+    const a = Number(params?.link_crank || 1.0);
+    const b = Number(params?.link_coupler || 2.5);
+    const c = Number(params?.link_rocker || 3.0);
+    const d = Number(params?.link_ground || 4.0);
+    const N = Number(params?.crank_speed || 75);
 
-  return `% =========================================================================
+    return `% =========================================================================
 % MECHSIM PRO - FOUR-BAR LINKAGE KINEMATICS (FREUDENSTEIN'S EQUATION)
 % Loop Closure: d + a*e^(i*theta2) + b*e^(i*theta3) = c*e^(i*theta4)
 % Verified for MATLAB (R2018b-R2024b) & GNU Octave
@@ -290,4 +290,60 @@ plot(theta2_deg, rad2deg(theta4), 'b-', 'LineWidth', 2);
 grid on; xlabel('Crank Input Angle \\theta_2 (deg)'); ylabel('Rocker Angle \\theta_4 (deg)');
 title('Four-Bar Linkage: Output Rocker Displacement');
 `;
+  }
+
+  if (simType === 'smd' || simType === 'spring_mass_damper') {
+    const m = Number(params?.mass || params?.m || 1.0);
+    const k = Number(params?.stiffness || params?.k || 20.0);
+    const c = Number(params?.damping || params?.c || 0.5);
+    const x0 = Number(params?.x0 || 0.1);
+    const v0 = Number(params?.v0 || 0.0);
+    const tEnd = Number(params?.tEnd || 10.0);
+
+    return `% =========================================================================
+% MECHSIM PRO - SPRING-MASS-DAMPER 1-DOF ODE45 TRANSIENT DYNAMICS
+% Governing Equation: m*x'' + c*x' + k*x = 0
+% Verified for MATLAB (R2018b-R2024b) & GNU Octave
+% =========================================================================
+clear; clc; close all;
+
+%% 1. Physical Parameters
+m = ${m.toFixed(4)};    % Mass (kg)
+k = ${k.toFixed(4)};    % Spring stiffness (N/m)
+c = ${c.toFixed(4)};    % Viscous damping (N*s/m)
+wn = sqrt(k / m);       % Natural frequency (rad/s)
+zeta = c / (2 * sqrt(m * k)); % Damping ratio
+
+fprintf('Natural frequency: %.3f rad/s\\n', wn);
+fprintf('Damping ratio: %.4f\\n', zeta);
+
+%% 2. Numerical Integration Setup
+tspan = [0, ${tEnd.toFixed(2)}];
+y0 = [${x0.toFixed(4)}; ${v0.toFixed(4)}]; % [displacement; velocity]
+
+% State-space ODE function: dy/dt = [y(2); -(c/m)*y(2) - (k/m)*y(1)]
+smd_ode = @(t, y) [y(2); -(c/m)*y(2) - (k/m)*y(1)];
+
+options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
+[t, y] = ode45(smd_ode, tspan, y0, options);
+
+x = y(:, 1);
+v = y(:, 2);
+
+%% 3. Visualization
+figure('Color', 'w', 'Position', [100, 100, 900, 600], 'Name', 'SMD Transient Dynamics');
+
+subplot(2, 1, 1);
+plot(t, x, 'b-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Displacement x(t) [m]');
+title(sprintf('Spring-Mass-Damper: Displacement (\\zeta = %.3f, \\omega_n = %.2f rad/s)', zeta, wn));
+
+subplot(2, 1, 2);
+plot(x, v, 'r-', 'LineWidth', 1.5);
+grid on; xlabel('Displacement x [m]'); ylabel('Velocity v [m/s]');
+title('Phase-Plane Portrait (x vs v)');
+`;
+  }
+
+  return `% Unsupported mechanism type: ${simType}\n`;
 }

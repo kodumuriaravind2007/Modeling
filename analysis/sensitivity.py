@@ -10,23 +10,6 @@ Calculates normalized sensitivity index:
 Delegates to existing simulation engine in mechanics.py.
 """
 
-import numpy as np
-import copy
-
-from simulations.mechanics import (
-    simple_pendulum_rk45,
-    compound_pendulum_rk45,
-    slider_crank_kinematics,
-    four_bar_kinematics,
-)
-from validation.analytical import (
-    simple_pendulum_elliptic_period,
-    compound_pendulum_period,
-    slider_crank_stroke,
-    slider_crank_max_velocity,
-    grashof_condition,
-)
-
 # Reuse the extractors from design.py
 from analysis.design import EXTRACTORS
 

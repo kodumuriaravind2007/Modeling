@@ -16,8 +16,7 @@ from simulations.kinematics_core import (
 from validation.analytical import (
     exact_belendez_ratio,
     simple_pendulum_elliptic_period,
-    simple_pendulum_small_angle_period,
-    four_bar_rocker_range
+    simple_pendulum_small_angle_period
 )
 
 

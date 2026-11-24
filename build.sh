@@ -9,7 +9,7 @@ echo "==> Installing Python dependencies..."
 pip install -r requirements.txt
 
 # If node and npm are available, rebuild frontend bundle
-if command -v npm &> /dev/null; then
+if command -v npm > /dev/null 2>&1; then
   echo "==> Node and npm detected. Building frontend assets..."
   npm install
   npm run build

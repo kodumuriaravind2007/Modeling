@@ -21,7 +21,6 @@ from simulations.mechanics import (
 )
 from validation.analytical import (
     simple_pendulum_elliptic_period,
-    simple_pendulum_small_angle_period,
     compound_pendulum_period,
     slider_crank_stroke,
     slider_crank_max_velocity,
@@ -70,6 +69,15 @@ def _compute_output(sim_type, params, output_key):
     elif sim_type == "compound_pendulum":
         if output_key == "period":
             return compound_pendulum_period(params["length"], params["gravity"])
+        elif output_key == "max_omega":
+            L = float(params["length"])
+            m = float(params.get("mass", 2.0))
+            g = float(params.get("gravity", 9.81))
+            th0_deg = float(params.get("theta0", 25.0))
+            d = L / 2.0
+            I_pivot = (1.0 / 3.0) * m * L * L if (m * L * L) > 0 else 1e-6
+            PE0 = m * g * d * (1.0 - np.cos(np.radians(th0_deg)))
+            return float(np.sqrt(max(0.0, (2.0 * PE0) / I_pivot)))
 
     elif sim_type == "slider_crank":
         if output_key == "stroke":

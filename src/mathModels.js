@@ -78,8 +78,27 @@ export const MATH_MODELS = {
       total: '-'
     },
     analogyType: 'kinematic'
+  },
+  smd: {
+    title: 'Spring-Mass-Damper Network',
+    governingEqn: '\\mathbf{M} \\ddot{\\mathbf{x}} + \\mathbf{C} \\dot{\\mathbf{x}} + \\mathbf{K} \\mathbf{x} = \\mathbf{F}(t)',
+    linearizedEqn: 'm \\ddot{x} + c \\dot{x} + k x = F(t)',
+    standardForm: '\\ddot{x} + 2 \\zeta \\omega_n \\dot{x} + \\omega_n^2 x = \\frac{F(t)}{m}',
+    stateVector: '\\begin{bmatrix} \\dot{\\mathbf{x}} \\\\ \\ddot{\\mathbf{x}} \\end{bmatrix} = \\begin{bmatrix} \\mathbf{0} & \\mathbf{I} \\\\ -\\mathbf{M}^{-1}\\mathbf{K} & -\\mathbf{M}^{-1}\\mathbf{C} \\end{bmatrix} \\begin{bmatrix} \\mathbf{x} \\\\ \\mathbf{v} \\end{bmatrix} + \\begin{bmatrix} \\mathbf{0} \\\\ \\mathbf{M}^{-1} \\end{bmatrix} \\mathbf{F}',
+    parameters: [
+      { symbol: 'm', name: 'Mass', unit: 'kg', description: 'Primary lump mass m' },
+      { symbol: 'k', name: 'Stiffness', unit: 'N/m', description: 'Spring stiffness constant k' },
+      { symbol: 'c', name: 'Damping', unit: 'N·s/m', description: 'Viscous dashpot damping constant c' }
+    ],
+    energyEquations: {
+      KE: 'T = \\frac{1}{2} m v^2',
+      PE: 'V = \\frac{1}{2} k x^2',
+      total: 'E = T + V'
+    },
+    analogyType: 'rlc'
   }
 };
+MATH_MODELS.spring_mass_damper = MATH_MODELS.smd;
 
 export function computeAnalogy(simType, params) {
   if (simType === 'simple_pendulum') {
@@ -143,6 +162,23 @@ export function computeAnalogy(simType, params) {
     const Q = links[2];
     const grashof = (S + L_max) <= (P + Q);
     return { K1, K2, K3, grashof, S, L: L_max, P, Q, a, b, c, d };
+  } else if (simType === 'smd' || simType === 'spring_mass_damper') {
+    const m = Number(params?.m || params?.mass || 1);
+    const k = Number(params?.k || 100);
+    const c = Number(params?.c || params?.damping || 1);
+    const omega_n = Math.sqrt(Math.max(0.001, k / m));
+    const zeta = c / (2 * Math.sqrt(Math.max(0.001, m * k)));
+    let omega_d = 0;
+    let T_d = null;
+    if (zeta < 1 && zeta > 0) {
+      omega_d = omega_n * Math.sqrt(1 - zeta * zeta);
+      T_d = (2 * Math.PI) / omega_d;
+    }
+    const T_n = (2 * Math.PI) / omega_n;
+    const L_e = m;
+    const R = c;
+    const C = 1 / k;
+    return { L_e, R, C, omega_n, zeta, omega_d, T_n, T_d };
   }
   return {};
 }
@@ -181,6 +217,14 @@ export function getSubstitutedEqn(simType, params) {
     const eqn = `${analogy.K1.toFixed(3)} \\cos(\\theta_4) - ${analogy.K2.toFixed(3)} \\cos(\\theta_2) + ${analogy.K3.toFixed(3)} = \\cos(\\theta_2 - \\theta_4)`;
     const grashofStr = analogy.grashof ? '\\text{Yes (Grashof)}' : '\\text{No (Non-Grashof)}';
     const computed = `S+L = ${(analogy.S + analogy.L).toFixed(2)}, \\; P+Q = ${(analogy.P + analogy.Q).toFixed(2)}, \\; \\text{Grashof: } ${grashofStr}`;
+    return { eqn, computed };
+  } else if (simType === 'smd' || simType === 'spring_mass_damper') {
+    const m = Number(params?.m || params?.mass || 1);
+    const k = Number(params?.k || 100);
+    const c = Number(params?.c || params?.damping || 1);
+    const eqn = `${m} \\ddot{x} + ${c} \\dot{x} + ${k} x = F(t)`;
+    const analogy = computeAnalogy(simType, params);
+    const computed = `\\omega_n = ${analogy.omega_n.toFixed(3)} \\text{ rad/s}, \\; \\zeta = ${analogy.zeta.toFixed(4)}, \\; T_n = ${analogy.T_n.toFixed(3)} \\text{ s}`;
     return { eqn, computed };
   }
   return { eqn: '', computed: '' };
@@ -245,6 +289,18 @@ export function getStateSpaceMatrix(simType, params = {}) {
       symbolic: '\\begin{bmatrix} K_1 \\\\ K_2 \\\\ K_3 \\end{bmatrix} = \\begin{bmatrix} d/a \\\\ d/c \\\\ \\frac{a^2 - b^2 + c^2 + d^2}{2 a c} \\end{bmatrix}, \\quad K_1\\cos(\\theta_4) - K_2\\cos(\\theta_2) + K_3 = \\cos(\\theta_2 - \\theta_4)',
       evaluated: `\\begin{bmatrix} K_1 \\\\ K_2 \\\\ K_3 \\end{bmatrix} = \\begin{bmatrix} ${K1.toFixed(3)} \\\\ ${K2.toFixed(3)} \\\\ ${K3.toFixed(3)} \\end{bmatrix}, \\quad ${K1.toFixed(3)}\\cos(\\theta_4) - ${K2.toFixed(3)}\\cos(\\theta_2) + ${K3.toFixed(3)} = \\cos(\\theta_2 - \\theta_4)`,
       linearEvaluated: `\\begin{bmatrix} a \\cos(\\theta_2) + b \\cos(\\theta_3) - c \\cos(\\theta_4) - d \\\\ a \\sin(\\theta_2) + b \\sin(\\theta_3) - c \\sin(\\theta_4) \\end{bmatrix} = \\begin{bmatrix} 0 \\\\ 0 \\end{bmatrix}`
+    };
+  } else if (simType === 'smd' || simType === 'spring_mass_damper') {
+    const m = Number(params?.m || params?.mass || 1.0);
+    const k = Number(params?.k || 100.0);
+    const c = Number(params?.c || params?.damping || 1.0);
+    const km = k / Math.max(0.001, m);
+    const cm = c / Math.max(0.001, m);
+
+    return {
+      symbolic: '\\begin{bmatrix} \\dot{x} \\\\ \\ddot{x} \\end{bmatrix} = \\begin{bmatrix} 0 & 1 \\\\ -k/m & -c/m \\end{bmatrix} \\begin{bmatrix} x \\\\ v \\end{bmatrix} + \\begin{bmatrix} 0 \\\\ 1/m \\end{bmatrix} F(t)',
+      evaluated: `\\begin{bmatrix} \\dot{x} \\\\ \\ddot{x} \\end{bmatrix} = \\begin{bmatrix} 0 & 1 \\\\ -${km.toFixed(2)} & -${cm.toFixed(2)} \\end{bmatrix} \\begin{bmatrix} x \\\\ v \\end{bmatrix} + \\begin{bmatrix} 0 \\\\ ${(1/m).toFixed(2)} \\end{bmatrix} F(t)`,
+      linearEvaluated: `\\mathbf{A} = \\begin{bmatrix} 0 & 1 \\\\ -${km.toFixed(2)} & -${cm.toFixed(2)} \\end{bmatrix}, \\quad \\mathbf{B} = \\begin{bmatrix} 0 \\\\ ${(1/m).toFixed(2)} \\end{bmatrix}`
     };
   }
   return { symbolic: '', evaluated: '', linearEvaluated: '' };

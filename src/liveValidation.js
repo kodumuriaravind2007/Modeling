@@ -48,6 +48,7 @@ function makeRow(name, theoretical, numerical, tolerance = 0.05) {
  * fields cleanly render as '--' with zero synthetic multipliers.
  */
 export function computeLiveValidation(simType, params = {}, simData = null) {
+  params = params || {};
   const rows = [];
   let summary = {};
 

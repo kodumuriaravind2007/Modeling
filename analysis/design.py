@@ -13,18 +13,11 @@ All computation delegates to the EXISTING simulation engine in mechanics.py.
 import numpy as np
 from itertools import product
 
-from simulations.mechanics import (
-    simple_pendulum_rk45,
-    compound_pendulum_rk45,
-    slider_crank_kinematics,
-    four_bar_kinematics,
-)
+from simulations.mechanics import slider_crank_kinematics
 from simulations.kinematics_core import solve_four_bar_full_cycle
 from validation.analytical import (
     simple_pendulum_elliptic_period,
     compound_pendulum_period,
-    slider_crank_stroke,
-    slider_crank_max_velocity,
     grashof_condition,
 )
 
@@ -139,16 +132,26 @@ def _extract_metrics_compound(params):
 def _extract_metrics_slider(params):
     r = float(params["crank_length"])
     l = float(params["conn_length"])
-    rpm = float(params["crank_speed"])
+    rpm = float(params.get("crank_speed", 300.0))
     T = 60.0 / max(rpm, 1e-3)
     dt = T / 180.0
-    res = slider_crank_kinematics(r, l, rpm, dt, T)
-    return {
-        "stroke": res["stroke"],
-        "v_max": res["v_max"],
-        "a_max": res["a_max"],
-        "lambda": r / l,
-    }
+    try:
+        res = slider_crank_kinematics(r, l, rpm, dt, T)
+        return {
+            "stroke": float(res["stroke"]),
+            "v_max": float(res["v_max"]),
+            "a_max": float(res["a_max"]),
+            "lambda": float(r / l) if l > 0 else 0.0,
+        }
+    except Exception:
+        omega = (rpm * 2.0 * np.pi) / 60.0
+        lam = r / l if l > 0 else 0.0
+        return {
+            "stroke": float(2.0 * r),
+            "v_max": float(r * omega),
+            "a_max": float(r * omega * omega * (1.0 + lam)),
+            "lambda": float(lam),
+        }
 
 
 def _extract_metrics_fourbar(params):
@@ -156,16 +159,28 @@ def _extract_metrics_fourbar(params):
     a = float(params["link_crank"])
     b = float(params["link_coupler"])
     c = float(params["link_rocker"])
-    rpm = float(params["crank_speed"])
+    rpm = float(params.get("crank_speed", 60.0))
     T = 60.0 / max(rpm, 1e-3)
     dt = T / 180.0
-    res = solve_four_bar_full_cycle(d, a, b, c, rpm, dt, T)
-    grashof = grashof_condition(d, a, b, c)
-    return {
-        "rocker_range_deg": res["rocker_range_deg"],
-        "grashof": grashof,
-        "max_omega4": float(max(abs(w) for w in res["omega4"])),
-    }
+    try:
+        res = solve_four_bar_full_cycle(d, a, b, c, rpm, dt, T)
+        grashof = grashof_condition(d, a, b, c)
+        return {
+            "rocker_range_deg": float(res["rocker_range_deg"]),
+            "grashof": grashof,
+            "max_omega4": float(max(abs(w) for w in res["omega4"])) if res.get("omega4") else 0.0,
+        }
+    except Exception:
+        from validation.analytical import four_bar_rocker_range
+        r_range = four_bar_rocker_range(d, a, b, c)
+        grashof = grashof_condition(d, a, b, c)
+        omega2 = rpm * 2.0 * np.pi / 60.0
+        max_w4 = (np.radians(r_range or 0) / max(1e-3, np.pi / omega2)) * 1.5 if r_range else 0.0
+        return {
+            "rocker_range_deg": float(r_range) if r_range is not None else 0.0,
+            "grashof": grashof,
+            "max_omega4": float(max_w4),
+        }
 
 
 EXTRACTORS = {

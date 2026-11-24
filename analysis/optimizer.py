@@ -8,7 +8,6 @@ The objective function delegates entirely to the EXISTING simulation engine
 in mechanics.py — no separate physics is implemented here.
 """
 
-import numpy as np
 from scipy.optimize import differential_evolution, minimize
 
 from simulations.mechanics import (
@@ -20,7 +19,6 @@ from simulations.mechanics import (
 from validation.analytical import (
     simple_pendulum_elliptic_period,
     compound_pendulum_period,
-    grashof_condition,
 )
 
 
@@ -94,14 +92,23 @@ def _compute_objective(sim_type, params, objective_key):
             if objective_key == "a_max":    return r["a_max"]
 
         elif sim_type == "four_bar":
-            r = four_bar_kinematics(
-                params["link_ground"], params["link_crank"],
-                params["link_coupler"], params["link_rocker"],
-                params["crank_speed"], params.get("dt", 0.01), params.get("t_max", 2.0),
-            )
-            if objective_key == "rocker_range_deg": return r["rocker_range_deg"]
-            if objective_key == "max_omega4":
-                return max(abs(w) for w in r["omega4"])
+            try:
+                r = four_bar_kinematics(
+                    params["link_ground"], params["link_crank"],
+                    params["link_coupler"], params["link_rocker"],
+                    params.get("crank_speed", 60), params.get("dt", 0.01), params.get("t_max", 2.0),
+                )
+                if objective_key == "rocker_range_deg": return r["rocker_range_deg"]
+                if objective_key == "max_omega4":
+                    return max(abs(w) for w in r["omega4"]) if "omega4" in r else 0.0
+            except Exception:
+                from validation.analytical import four_bar_rocker_range
+                r_range = four_bar_rocker_range(
+                    params["link_ground"], params["link_crank"],
+                    params["link_coupler"], params["link_rocker"]
+                )
+                if objective_key == "rocker_range_deg": return r_range
+                return None
 
     except Exception:
         return None

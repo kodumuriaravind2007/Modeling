@@ -17,26 +17,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import math
 import numpy as np
-from scipy import special
 
 from simulations.kinematics_core import (
     solve_four_bar_position,
-    solve_four_bar_velocity_and_acceleration,
-    classify_grashof,
     theoretical_four_bar_rocker_range,
     solve_slider_crank
 )
 from simulations.mechanics import (
     simple_pendulum_rk45,
     compound_pendulum_rk45,
-    slider_crank_kinematics,
-    four_bar_kinematics
+    slider_crank_kinematics
 )
 from validation.analytical import (
     simple_pendulum_small_angle_period,
     simple_pendulum_elliptic_period,
-    simple_pendulum_series_period,
-    compound_pendulum_period,
     measure_numerical_period,
     exact_belendez_ratio
 )

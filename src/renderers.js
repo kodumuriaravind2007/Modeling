@@ -219,6 +219,7 @@ function drawCADJointPin(ctx, x, y, outerColor = '#173770', label = '', radius =
 
 // ── 1. Simple Pendulum Renderer ───────────────────────────────────────
 export function drawSimplePendulum(ctx, w, h, theta_deg, params = {}, omega = 0) {
+  params = params || {};
   ctx.clearRect(0, 0, w, h);
   drawGrid(ctx, w, h);
 
@@ -518,6 +519,7 @@ export function drawSimplePendulum(ctx, w, h, theta_deg, params = {}, omega = 0)
 
 // ── 2. Compound Pendulum Renderer ─────────────────────────────────────
 export function drawCompoundPendulum(ctx, w, h, theta_deg, params = {}) {
+  params = params || {};
   ctx.clearRect(0, 0, w, h);
   drawGrid(ctx, w, h);
 
@@ -796,6 +798,7 @@ export function drawCompoundPendulum(ctx, w, h, theta_deg, params = {}) {
 
 // ── 3. Slider-Crank Renderer ──────────────────────────────────────────
 export function drawSliderCrank(ctx, w, h, crank_angle_deg, simData, params = {}) {
+  params = params || {};
   ctx.clearRect(0, 0, w, h);
   drawGrid(ctx, w, h);
 
@@ -998,6 +1001,7 @@ export function drawSliderCrank(ctx, w, h, crank_angle_deg, simData, params = {}
 
 // ── 4. Four-Bar Linkage Renderer ──────────────────────────────────────
 export function drawFourBar(ctx, w, h, idx, simData, params = {}) {
+  params = params || {};
   ctx.clearRect(0, 0, w, h);
   drawGrid(ctx, w, h);
 

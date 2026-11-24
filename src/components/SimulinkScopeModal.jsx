@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
+const EMPTY_ARR = Object.freeze([]);
+
 /**
  * SimulinkScopeModal
  * Full-fidelity interactive Tektronix / Keysight / MathWorks Simulink Oscilloscope viewer.
@@ -20,7 +22,6 @@ export const SimulinkScopeModal = ({
   onSeek
 }) => {
   const canvasRef = useRef(null);
-  const backdropMouseDownRef = useRef(false);
 
   const numMasses = simData?.x?.length || 1;
   const is2DOF = numMasses >= 2;
@@ -45,11 +46,11 @@ export const SimulinkScopeModal = ({
   const waveform = forceEdge ? (forceEdge.waveform || 'sine') : 'none';
 
   // Compute maximum peak values for scaling & telemetry
-  const x1Trace = simData?.x?.[0] || [];
-  const x2Trace = is2DOF ? (simData?.x?.[1] || []) : [];
-  const v1Trace = simData?.v?.[0] || [];
-  const v2Trace = is2DOF ? (simData?.v?.[1] || []) : [];
-  const timeArr = simData?.time || [];
+  const x1Trace = useMemo(() => simData?.x?.[0] || EMPTY_ARR, [simData?.x]);
+  const x2Trace = useMemo(() => (is2DOF && simData?.x?.[1]) ? simData.x[1] : EMPTY_ARR, [is2DOF, simData?.x]);
+  const v1Trace = useMemo(() => simData?.v?.[0] || EMPTY_ARR, [simData?.v]);
+  const v2Trace = useMemo(() => (is2DOF && simData?.v?.[1]) ? simData.v[1] : EMPTY_ARR, [is2DOF, simData?.v]);
+  const timeArr = useMemo(() => simData?.time || EMPTY_ARR, [simData?.time]);
   const nSteps = timeArr.length || 1;
   const dt = nSteps > 1 ? (timeArr[1] - timeArr[0]) : 0.005;
 
@@ -459,14 +460,8 @@ export const SimulinkScopeModal = ({
         justifyContent: 'center',
         padding: '16px'
       }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          backdropMouseDownRef.current = true;
-        }
-      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
-          backdropMouseDownRef.current = false;
+        if (e.target === e.currentTarget) {
           onClose();
         }
       }}

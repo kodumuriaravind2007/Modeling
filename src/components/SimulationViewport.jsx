@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Scene3D } from '../Scene3D';
 
-export const SimulationViewport = ({
+export const SimulationViewport = React.memo(({
   simType,
   simulations,
   params,
@@ -25,7 +25,6 @@ export const SimulationViewport = ({
 
   // 2D Direct Bob Manipulation State
   const [isDraggingBob, setIsDraggingBob] = useState(false);
-  const [dragAngle, setDragAngle] = useState(params?.theta0 ?? 30);
   const dragAngleRef = useRef(params?.theta0 ?? 30);
   const [isHoveringBob, setIsHoveringBob] = useState(false);
   const containerRef = useRef(null);
@@ -33,7 +32,6 @@ export const SimulationViewport = ({
   // Synchronize dragAngle with external theta0 updates when not actively dragging
   useEffect(() => {
     if (!isDraggingBob && params?.theta0 !== undefined) {
-      setDragAngle(params.theta0);
       dragAngleRef.current = params.theta0;
     }
   }, [params?.theta0, isDraggingBob]);
@@ -178,7 +176,6 @@ export const SimulationViewport = ({
     } catch {}
     setIsDraggingBob(false);
     const finalAngle = dragAngleRef.current;
-    setDragAngle(finalAngle);
     if (onBobDragRelease) {
       onBobDragRelease(finalAngle);
     }
@@ -264,5 +261,18 @@ export const SimulationViewport = ({
       )}
     </main>
   );
-};
+}, (prev, next) => {
+  // While simulation is actively playing, skip heavy React reconciliation on frame tick
+  // (Both 3D WebGL and 2D Canvas are updated directly on GPU without React bottleneck)
+  if (next.isPlaying && prev.isPlaying && prev.animIdx !== next.animIdx) {
+    return prev.simType === next.simType &&
+      prev.params === next.params &&
+      prev.simData === next.simData &&
+      prev.viewMode === next.viewMode &&
+      prev.loading === next.loading &&
+      prev.isModalOpen === next.isModalOpen &&
+      prev.animSpeed === next.animSpeed;
+  }
+  return false;
+});
 

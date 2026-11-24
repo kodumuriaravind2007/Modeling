@@ -4,7 +4,6 @@ Verifies route responses, feasibility checks, and exception sanitization (no sta
 """
 
 import pytest
-import json
 from app import app
 
 

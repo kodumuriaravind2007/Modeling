@@ -3,7 +3,7 @@ import { Tooltip as ParamTooltip } from '../Tooltip';
 import { FeasibilityPanel } from './FeasibilityPanel';
 import { checkFeasibility, FEASIBILITY_STATUS } from '../core/feasibility.js';
 
-export const ControlsDrawer = ({
+export const ControlsDrawer = React.memo(({
   isOpen,
   simType,
   simulations,
@@ -130,10 +130,17 @@ export const ControlsDrawer = ({
 
 
   return (
-    <>
+    <div
+      className="controls-drawer-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="presentation"
+    >
       <aside
         className="controls-drawer"
         aria-label="Simulation Controls"
+        onClick={e => e.stopPropagation()}
         onPointerDown={e => e.stopPropagation()}
         onMouseDown={e => e.stopPropagation()}
         onTouchStart={e => e.stopPropagation()}
@@ -453,6 +460,6 @@ export const ControlsDrawer = ({
           </div>
         </div>
       </aside>
-    </>
+    </div>
   );
-};
+});
